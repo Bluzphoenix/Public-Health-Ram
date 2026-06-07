@@ -85,16 +85,14 @@ function doGet(e) {
       "schema": schema,
       "surveys": surveys
     }))
-    .setMimeType(ContentService.MimeType.JSON)
-    .setHeaders(corsHeader);
+    .setMimeType(ContentService.MimeType.JSON);
 
   } catch (error) {
     return ContentService.createTextOutput(JSON.stringify({
       "status": "error",
       "message": error.toString()
     }))
-    .setMimeType(ContentService.MimeType.JSON)
-    .setHeaders(corsHeader);
+    .setMimeType(ContentService.MimeType.JSON);
   }
 }
 
@@ -121,7 +119,7 @@ function doPost(e) {
           "message": "กรุณาส่งรหัส ID Token ยืนยันสิทธิ์"
         }))
         .setMimeType(ContentService.MimeType.JSON)
-        .setHeaders(corsHeader);
+        ;
       }
 
       // ตรวจสอบ Token กับกูเกิลเซิร์ฟเวอร์
@@ -132,7 +130,7 @@ function doPost(e) {
           "message": "Token ตรวจสอบไม่ผ่าน หรือหมดเวลาเชื่อมต่อ"
         }))
         .setMimeType(ContentService.MimeType.JSON)
-        .setHeaders(corsHeader);
+        ;
       }
 
       // เช็คว่าอีเมลนี้มีสิทธิ์แอดมินหรือไม่
@@ -142,7 +140,7 @@ function doPost(e) {
           "message": "บัญชีของคุณ (" + email + ") ไม่มีสิทธิ์เข้าถึงฟังก์ชั่นจัดการหลังบ้าน"
         }))
         .setMimeType(ContentService.MimeType.JSON)
-        .setHeaders(corsHeader);
+        ;
       }
 
       // ดำเนินการตามแต่ละ Action ของผู้ดูแลระบบ
@@ -155,7 +153,7 @@ function doPost(e) {
           "data": responses
         }))
         .setMimeType(ContentService.MimeType.JSON)
-        .setHeaders(corsHeader);
+        ;
       }
       
       // 2. ดึงรายชื่อแอดมินทั้งหมด
@@ -166,7 +164,7 @@ function doPost(e) {
           "admins": admins
         }))
         .setMimeType(ContentService.MimeType.JSON)
-        .setHeaders(corsHeader);
+        ;
       }
       
       // 3. เพิ่มแอดมินใหม่
@@ -181,7 +179,7 @@ function doPost(e) {
           "message": success ? "เพิ่มรายชื่อแอดมินเรียบร้อยแล้ว" : "อีเมลนี้ได้รับสิทธิ์แอดมินอยู่แล้ว"
         }))
         .setMimeType(ContentService.MimeType.JSON)
-        .setHeaders(corsHeader);
+        ;
       }
       
       // 4. ลบสิทธิ์แอดมิน
@@ -193,7 +191,7 @@ function doPost(e) {
             "message": "ไม่สามารถลบสิทธิ์บัญชีของตัวเองได้ เพื่อความปลอดภัย"
           }))
           .setMimeType(ContentService.MimeType.JSON)
-          .setHeaders(corsHeader);
+          ;
         }
         var success = deleteAdminEmail(ss, deleteEmail);
         return ContentService.createTextOutput(JSON.stringify({
@@ -201,7 +199,7 @@ function doPost(e) {
           "message": success ? "ลบสิทธิ์แอดมินเรียบร้อยแล้ว" : "ไม่พบรายชื่ออีเมลที่ระบุ"
         }))
         .setMimeType(ContentService.MimeType.JSON)
-        .setHeaders(corsHeader);
+        ;
       }
       
       // 5. ดึงข้อมูลแบบสอบถามทั้งหมด (Admin endpoint)
@@ -212,7 +210,7 @@ function doPost(e) {
           "surveys": surveys
         }))
         .setMimeType(ContentService.MimeType.JSON)
-        .setHeaders(corsHeader);
+        ;
       }
       
       // 6. เซฟข้อมูลรายการแบบสอบถามทั้งหมด (Admin endpoint)
@@ -223,7 +221,7 @@ function doPost(e) {
           "message": "บันทึกรายการแบบสอบถามแล้ว"
         }))
         .setMimeType(ContentService.MimeType.JSON)
-        .setHeaders(corsHeader);
+        ;
       }
       
       // 7. บันทึกการตั้งค่าเวลาและชื่อแบบประเมิน (ของเดิม - ปรับปรุงลงชีต Surveys)
@@ -253,7 +251,7 @@ function doPost(e) {
           "message": "บันทึกการตั้งค่าเรียบร้อยแล้ว"
         }))
         .setMimeType(ContentService.MimeType.JSON)
-        .setHeaders(corsHeader);
+        ;
       }
       
       // 8. บันทึกโครงสร้างแบบสอบถาม (Schema JSON) (ของเดิม - ปรับปรุงลงชีต Surveys)
@@ -278,7 +276,7 @@ function doPost(e) {
           "message": "ปรับปรุงโครงสร้างคำถามเรียบร้อยแล้ว"
         }))
         .setMimeType(ContentService.MimeType.JSON)
-        .setHeaders(corsHeader);
+        ;
       }
     } 
     
@@ -374,7 +372,7 @@ function doPost(e) {
         "row": sheet.getLastRow()
       }))
       .setMimeType(ContentService.MimeType.JSON)
-      .setHeaders(corsHeader);
+      ;
     }
 
   } catch (error) {
@@ -382,8 +380,7 @@ function doPost(e) {
       "status": "error",
       "message": error.toString()
     }))
-    .setMimeType(ContentService.MimeType.JSON)
-    .setHeaders(corsHeader);
+    .setMimeType(ContentService.MimeType.JSON);
   }
 }
 

@@ -1436,7 +1436,7 @@ function fetchDataSecurely(token) {
   fetch(APPS_SCRIPT_URL, {
     method: "POST",
     headers: {
-      "Content-Type": "application/json"
+      "Content-Type": "text/plain;charset=utf-8"
     },
     body: JSON.stringify({
       action: "fetch_data",
@@ -2228,7 +2228,7 @@ function submitFormAnswers() {
     method: "POST",
     mode: "no-cors", 
     headers: {
-      "Content-Type": "application/json"
+      "Content-Type": "text/plain;charset=utf-8"
     },
     body: JSON.stringify(payload)
   })
@@ -2294,7 +2294,7 @@ function loadAdmins() {
   const token = sessionStorage.getItem("admin_token");
   fetch(APPS_SCRIPT_URL, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "text/plain;charset=utf-8" },
     body: JSON.stringify({
       action: "fetch_admins",
       idToken: token
@@ -2378,7 +2378,7 @@ function addAdmin(newEmail) {
   
   fetch(APPS_SCRIPT_URL, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "text/plain;charset=utf-8" },
     body: JSON.stringify({
       action: "add_admin",
       idToken: token,
@@ -2421,7 +2421,7 @@ function deleteAdmin(deleteEmail) {
   
   fetch(APPS_SCRIPT_URL, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "text/plain;charset=utf-8" },
     body: JSON.stringify({
       action: "delete_admin",
       idToken: token,
@@ -2589,7 +2589,7 @@ function saveSettings(isSilent) {
   
   fetch(APPS_SCRIPT_URL, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "text/plain;charset=utf-8" },
     body: JSON.stringify({
       action: "save_surveys",
       idToken: token,
@@ -2964,7 +2964,7 @@ function saveSurveysListToBackend() {
   
   fetch(APPS_SCRIPT_URL, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "text/plain;charset=utf-8" },
     body: JSON.stringify({
       action: "save_surveys",
       idToken: token,
