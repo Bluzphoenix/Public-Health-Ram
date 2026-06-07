@@ -10,6 +10,9 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <!-- Chart.js CDN -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- Flatpickr CSS & JS for formatted calendar picker -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
   <!-- Google Identity Services (Sign-In) SDK -->
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   <!-- Custom CSS -->
@@ -40,7 +43,11 @@
           <svg class="sun-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707m2.828-9.9a5 5 0 117.07 7.07l-2.828-2.828z" /></svg>
           <svg class="moon-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" /></svg>
         </button>
-        <button id="btn-go-survey" class="btn-primary">
+        <button id="btn-go-admin" class="btn-secondary">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="18" height="18"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+          พื้นที่ผู้ดูแลระบบ
+        </button>
+        <button id="btn-go-survey" class="btn-primary hidden">
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="18" height="18"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
           ทำแบบสอบถามออนไลน์
         </button>
@@ -56,7 +63,7 @@
   <main class="main-content">
 
     <!-- VIEW 1: DASHBOARD VIEW (Default) -->
-    <section id="view-dashboard" class="view-section active">
+    <section id="view-dashboard" class="view-section">
       
       <!-- LOGIN PANE FOR ADMINS -->
       <div id="dashboard-login-pane" class="login-pane">
@@ -79,18 +86,24 @@
         <!-- ADMIN NAVIGATION TABS -->
         <div class="admin-navigation-tabs">
           <button class="admin-tab-btn active" data-target="admin-tab-stats">📊 สถิติสรุปผล</button>
-          <button class="admin-tab-btn" data-target="admin-tab-users">👥 จัดการสิทธิ์แอดมิน</button>
-          <button class="admin-tab-btn" data-target="admin-tab-settings">⚙️ ตั้งค่า & QR Code</button>
-          <button class="admin-tab-btn" data-target="admin-tab-builder">✏️ สร้างแบบสอบถามใหม่</button>
+          <button class="admin-tab-btn" data-target="admin-tab-users">👥 User management</button>
+          <button class="admin-tab-btn" data-target="admin-tab-settings">⚙️ Setting</button>
         </div>
 
         <!-- TAB 1: STATISTICS (Original Dashboard) -->
         <div id="admin-tab-stats" class="admin-tab-pane active">
           <!-- Welcome/Intro -->
-          <div class="hero-banner">
-            <div class="hero-text">
+          <div class="hero-banner" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
+            <div class="hero-text" style="flex: 1; min-width: 300px;">
               <h2 id="dashboard-welcome-title">แดชบอร์ดสรุปผลภาพรวม</h2>
               <p>แสดงผลสถิติจำนวนผู้เข้าร่วมและความพึงพอใจต่อแบบประเมินผลระบบเรียลไทม์ที่ดึงข้อมูลจากสเปรดชีตบน Google Sheets</p>
+            </div>
+            <!-- Dashboard Survey Selector -->
+            <div class="dashboard-selector-card" style="background: rgba(255,255,255,0.15); backdrop-filter: blur(10px); padding: 12px 16px; border-radius: var(--radius-md); border: 1px solid rgba(255,255,255,0.2); display: flex; flex-direction: column; gap: 6px; min-width: 280px; align-self: center;">
+              <label for="dashboard-survey-selector" style="font-size: 0.75rem; font-weight: 600; color: white; opacity: 0.95;">เลือกข้อมูลแบบสอบถามที่ต้องการดูสถิติ</label>
+              <select id="dashboard-survey-selector" class="form-control" style="background: white; color: var(--text-primary); border: none; padding: 8px 12px; font-size: 0.85rem; border-radius: var(--radius-sm); cursor: pointer; width: 100%;">
+                <option value="all">ดูทุกแบบสอบถามรวมกัน</option>
+              </select>
             </div>
             <div class="data-sync-info">
               <span class="sync-dot"></span>
@@ -223,40 +236,134 @@
           </div>
 
           <div class="admin-settings-layout">
-            <!-- Left: Settings Form -->
-            <div class="settings-form-card">
-              <h4>ตั้งค่าข้อจำกัดแบบสอบถาม</h4>
-              <form id="form-survey-settings">
-                <div class="form-group">
-                  <label for="input-set-title" class="form-label">ชื่อแบบประเมินผล / แบบสอบถาม</label>
-                  <textarea id="input-set-title" rows="2" class="form-control" placeholder="ชื่อแบบประเมินสำหรับแสดงผลที่หน้าฟอร์มกรอกคำตอบ" required></textarea>
+            <!-- Left: Settings Form & List -->
+            <div class="settings-form-card" style="display: flex; flex-direction: column; gap: 24px;">
+              <!-- SURVEY LIST SECTION -->
+              <div class="survey-list-section">
+                <h4 style="margin-bottom: 12px;">รายการแบบสอบถามทั้งหมด</h4>
+                <div style="overflow-x: auto; background: var(--bg-accent); border: 1px solid var(--border-color); border-radius: var(--radius-sm); margin-bottom: 16px;">
+                  <table class="survey-list-table" style="width: 100%; border-collapse: collapse; min-width: 500px;">
+                    <thead>
+                      <tr style="background: var(--border-color); text-align: left; font-size: 0.8rem; color: var(--text-secondary);">
+                        <th style="padding: 10px; width: 40px; text-align: center;"><input type="checkbox" id="survey-select-all" style="transform: scale(1.1); cursor: pointer;"></th>
+                        <th style="padding: 10px;">ชื่อแบบสอบถาม</th>
+                        <th style="padding: 10px; width: 180px;">ระยะเวลากรอกข้อมูล</th>
+                        <th style="padding: 10px; width: 80px; text-align: center;">สถานะ</th>
+                      </tr>
+                    </thead>
+                    <tbody id="survey-list-tbody" style="font-size: 0.85rem;">
+                      <tr>
+                        <td colspan="4" style="padding: 20px; text-align: center; color: var(--text-muted);">กำลังโหลดข้อมูลแบบสอบถาม...</td>
+                      </tr>
+                    </tbody>
+                  </table>
                 </div>
                 
-                <div class="form-row">
-                  <div class="form-group col-6">
-                    <label for="input-set-start" class="form-label">วันเวลาที่เริ่มเปิดรับข้อมูล</label>
-                    <input type="datetime-local" id="input-set-start" class="form-control">
-                  </div>
-                  <div class="form-group col-6">
-                    <label for="input-set-end" class="form-label">วันเวลาที่สิ้นสุด/ปิดรับข้อมูล</label>
-                    <input type="datetime-local" id="input-set-end" class="form-control">
-                  </div>
+                <div class="survey-list-actions" style="display: flex; gap: 10px;">
+                  <button type="button" id="btn-survey-create" class="btn-primary" style="background: var(--success); border-color: var(--success); display: flex; align-items: center; gap: 6px; padding: 8px 14px; font-size: 0.85rem;">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg>
+                    new
+                  </button>
+                  <button type="button" id="btn-survey-edit" class="btn-primary" style="display: flex; align-items: center; gap: 6px; padding: 8px 14px; font-size: 0.85rem;">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                    edit
+                  </button>
+                  <button type="button" id="btn-survey-delete" class="btn-primary" style="background: var(--danger); border-color: var(--danger); display: flex; align-items: center; gap: 6px; padding: 8px 14px; font-size: 0.85rem;">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                    delete
+                  </button>
                 </div>
+              </div>
 
-                <div class="form-group">
-                  <label class="custom-checkbox">
-                    <input type="checkbox" id="input-set-active" checked>
-                    <span class="checkbox-box"></span>
-                    <span class="checkbox-text" style="font-weight: 600;">เปิดใช้งานแบบสอบถามนี้ (เปิดรับคำตอบ)</span>
-                  </label>
-                  <span class="field-hint">หากปิดช่องนี้ หน้าเว็บจะขึ้นแจ้งปิดรับคำตอบทันทีทุกกรณี</span>
-                </div>
+              <!-- SURVEY EDITOR FORM -->
+              <div id="survey-editor-section" style="border-top: 1px dashed var(--border-color); padding-top: 20px;">
+                <h4 id="survey-editor-title" style="margin-bottom: 16px;">รายละเอียดและการแก้ไขแบบสอบถาม</h4>
+                <form id="form-survey-settings">
+                  <div class="form-group">
+                    <label for="input-set-title" class="form-label">ชื่อแบบประเมินผล / แบบสอบถาม</label>
+                    <textarea id="input-set-title" rows="2" class="form-control" placeholder="ชื่อแบบประเมินสำหรับแสดงผลที่หน้าฟอร์มกรอกคำตอบ" required></textarea>
+                  </div>
+                  
+                  <div class="form-row">
+                    <div class="form-group col-6">
+                      <label for="input-set-start" class="form-label">วันเวลาที่เริ่มเปิดรับข้อมูล</label>
+                      <input type="text" id="input-set-start" class="form-control" placeholder="วัน/เดือน/ปี เช่น 08/06/2569 13:00">
+                    </div>
+                    <div class="form-group col-6">
+                      <label for="input-set-end" class="form-label">วันเวลาปิดรับข้อมูล</label>
+                      <input type="text" id="input-set-end" class="form-control" placeholder="วัน/เดือน/ปี เช่น 08/06/2569 13:00">
+                    </div>
+                  </div>
 
-                <button type="submit" class="btn-primary" style="margin-top: 12px;">
-                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" /></svg>
-                  บันทึกการตั้งค่าลงชีต
-                </button>
-              </form>
+                  <div class="form-group">
+                    <label for="input-set-token" class="form-label">Access Token สำหรับเข้าใช้งาน (แบบสอบถามนี้)</label>
+                    <div style="display: flex; gap: 8px;">
+                      <input type="text" id="input-set-token" class="form-control" placeholder="สร้างอัตโนมัติเมื่อกดบันทึก" readonly style="background: var(--bg-secondary); cursor: not-allowed; font-family: monospace;">
+                      <button type="button" id="btn-regenerate-token" class="btn-secondary" style="font-size: 0.8rem; padding: 6px 12px; white-space: nowrap;">สร้างคีย์ใหม่</button>
+                    </div>
+                  </div>
+
+                  <!-- DYNAMIC SURVEY BUILDER INTEGRATION -->
+                  <div style="margin-top: 24px; margin-bottom: 24px; border-top: 1px dashed var(--border-color); padding-top: 20px;">
+                    <h5 style="margin-bottom: 12px; font-weight: 600; color: var(--text-primary);">ข้อคำถามในแบบสอบถาม</h5>
+                    <div class="builder-sections-container" style="margin-bottom: 0;">
+                      <!-- Part 1 Builder Section -->
+                      <div class="builder-section-card" style="margin-bottom: 16px; padding: 16px;">
+                        <div class="builder-section-header" style="margin-bottom: 12px; padding-bottom: 8px;">
+                          <h6 style="margin: 0; font-size: 0.9rem; font-weight: 700;">ส่วนที่ 1: ข้อมูลทั่วไป</h6>
+                          <p style="margin: 2px 0 0 0; font-size: 0.75rem; color: var(--text-muted);">แก้ไขข้อมูลพื้นฐานทั่วไปที่ต้องการเก็บสถิติ</p>
+                        </div>
+                        <div class="builder-questions-list" id="builder-part1-list">
+                          <!-- Injected dynamically by JS -->
+                        </div>
+                      </div>
+
+                      <!-- Part 2 Builder Section -->
+                      <div class="builder-section-card" style="margin-bottom: 16px; padding: 16px;">
+                        <div class="builder-section-header" style="margin-bottom: 12px; padding-bottom: 8px;">
+                          <h6 style="margin: 0; font-size: 0.9rem; font-weight: 700;">ส่วนที่ 2: ความคิดเห็นที่มีต่อเวทีจัดงาน (สเกลประเมิน 1-5)</h6>
+                          <p style="margin: 2px 0 0 0; font-size: 0.75rem; color: var(--text-muted);">ข้อความแสดงทัศนคติ จัดกลุ่มตามด้านบริบท ปัจจัยนำเข้า กระบวนการ และผลผลิต</p>
+                        </div>
+                        <div class="builder-questions-list" id="builder-part2-list">
+                          <!-- Injected dynamically by JS (รวมปุ่มเพิ่มคำถาม) -->
+                        </div>
+                      </div>
+
+                      <!-- Part 3 Builder Section -->
+                      <div class="builder-section-card" style="margin-bottom: 16px; padding: 16px;">
+                        <div class="builder-section-header" style="margin-bottom: 12px; padding-bottom: 8px;">
+                          <h6 style="margin: 0; font-size: 0.9rem; font-weight: 700;">ส่วนที่ 3: ระดับความพึงพอใจและคำถามปลายเปิด</h6>
+                          <p style="margin: 2px 0 0 0; font-size: 0.75rem; color: var(--text-muted);">การแสดงความเห็นประเมินสิ่งอำนวยความสะดวก การมีส่วนร่วม และข้อเสนอแนะตัวหนังสือ</p>
+                        </div>
+                        <div class="builder-questions-list" id="builder-part3-list">
+                          <!-- Injected dynamically by JS -->
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- SURVEY STATUS CARD -->
+                  <div class="survey-status-card" style="margin-bottom: 20px; padding: 16px; border-radius: 10px; background: var(--bg-secondary); border: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                      <h5 style="margin: 0; font-size: 0.85rem; font-weight: 600; color: var(--text-primary);">สถานะแบบสอบถามปัจจุบัน</h5>
+                      <span style="font-size: 0.75rem; color: var(--text-muted);" id="survey-status-detail-text">ตรวจสอบสถานะ...</span>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                      <!-- iOS-style Switch Toggle -->
+                      <label class="switch-toggle">
+                        <input type="checkbox" id="input-set-active" checked>
+                        <span class="slider-round"></span>
+                      </label>
+                      <span id="survey-status-badge" class="badge-status open">เปิด</span>
+                    </div>
+                  </div>
+
+                  <button type="submit" id="btn-save-settings" class="btn-primary" style="margin-top: 12px; display: flex; align-items: center; gap: 6px;">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
+                    <span id="btn-save-settings-text">ตกลง</span>
+                  </button>
+                </form>
+              </div>
             </div>
 
             <!-- Right: QR Code generator box -->
@@ -285,68 +392,13 @@
           </div>
         </div>
 
-        <!-- TAB 4: CREATE SURVEY / FORM BUILDER -->
-        <div id="admin-tab-builder" class="admin-tab-pane">
-          <div class="section-title-wrapper">
-            <h3 class="section-title">สร้างแบบสอบถามใหม่ (Dynamic Questionnaire Builder)</h3>
-            <p class="section-subtitle">ปรับปรุง แก้ไข เพิ่ม หรือลบคำถามได้ด้วยตนเอง มีโครงสร้างตั้งต้นตามเทมเพลต Word ในเครื่อง</p>
-          </div>
-
-          <div class="builder-actions-top">
-            <button type="button" id="btn-builder-reset" class="btn-secondary">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 8H18.5" /></svg>
-              รีเซ็ตกลับเป็นเทมเพลต Word ตั้งต้น
-            </button>
-            <button type="button" id="btn-builder-save" class="btn-success">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
-              สร้างและเปิดใช้งานแบบสอบถามใหม่
-            </button>
-          </div>
-
-          <div class="builder-sections-container">
-            <!-- Part 1 Builder Section -->
-            <div class="builder-section-card">
-              <div class="builder-section-header">
-                <h4>ส่วนที่ 1: ข้อมูลทั่วไป</h4>
-                <p>แก้ไขข้อมูลพื้นฐานทั่วไปที่ต้องการเก็บสถิติ</p>
-              </div>
-              <div class="builder-questions-list" id="builder-part1-list">
-                <!-- Injected dynamically by JS -->
-              </div>
-            </div>
-
-            <!-- Part 2 Builder Section -->
-            <div class="builder-section-card">
-              <div class="builder-section-header">
-                <h4>ส่วนที่ 2: ความคิดเห็นที่มีต่อเวทีจัดงาน (สเกลประเมิน 1-5)</h4>
-                <p>ข้อความแสดงทัศนคติ จัดกลุ่มตามด้านบริบท ปัจจัยนำเข้า กระบวนการ และผลผลิต</p>
-              </div>
-              <div class="builder-questions-list" id="builder-part2-list">
-                <!-- Injected dynamically by JS -->
-              </div>
-              <button type="button" id="btn-builder-add-part2" class="btn-add-question">
-                + เพิ่มคำถามประเมิน 1-5 ใหม่
-              </button>
-            </div>
-
-            <!-- Part 3 Builder Section -->
-            <div class="builder-section-card">
-              <div class="builder-section-header">
-                <h4>ส่วนที่ 3: ระดับความพึงพอใจและคำถามปลายเปิด</h4>
-                <p>การแสดงความเห็นประเมินสิ่งอำนวยความสะดวก การมีส่วนร่วม และข้อเสนอแนะตัวหนังสือ</p>
-              </div>
-              <div class="builder-questions-list" id="builder-part3-list">
-                <!-- Injected dynamically by JS -->
-              </div>
-            </div>
-          </div>
-        </div>
+        <!-- TAB 4: CREATE SURVEY / FORM BUILDER - MERGED TO SETTINGS -->
 
       </div> <!-- /#dashboard-content -->
     </section>
 
     <!-- VIEW 3: SURVEY FORM VIEW (Evaluation Wizard) -->
-    <section id="view-survey" class="view-section">
+    <section id="view-survey" class="view-section active">
       <div class="form-container">
         
         <!-- SURVEY INACTIVE OVERLAY -->

@@ -1,6 +1,6 @@
 // CONFIGURATIONS
 // คัดลอก URL ของ Web App จาก Google Apps Script ที่ Deploy แล้วมาใส่ที่นี่
-const APPS_SCRIPT_URL = ""; 
+const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzMqls_cNzL9q8t_CudEkLREJNdoIf8JqdrRVWK2fFVFjO6dGvBUqTBvaTxM_YEFMOE/exec";
 // ใส่ Client ID ที่ได้จาก Google Cloud Console ที่นี่ (หากเว้นว่างไว้ ระบบจะใช้ Login จำลองสำหรับการทดสอบ)
 const GOOGLE_CLIENT_ID = "";
 // คัดลอก URL ของ CSV ที่ได้จากการสั่ง Share > Publish to Web ของ Google Sheets มาใส่ที่นี่ (กรณีดึงแบบสาธารณะ - ปัจจุบันระบบใช้ความปลอดภัยดึงผ่านสคริปต์แทน)
@@ -46,7 +46,7 @@ const DEFAULT_SCHEMA = [
     "กิจกรรมลานความรู้จากปฏิบัติการของชุมชนท้องถิ่น 4 ภาค",
     "กิจกรรมรูปธรรมจากการปฏิบัติของชุมชนท้องถิ่น"
   ], step: 3, required: true },
-  { id: "Q28", type: "likert", text: "28. ระดับความพึงพอใจต่อภาพอินโฟกราฟฟิกสื่อความหมายในกิจกรรมลานความรู้จากปฏิบัติการของชุมชนท้องถิ่น 4 ภาค (คะแนน 1-5)", section: "Infographic", step: 3, required: true },
+  { id: "Q28", type: "likert", text: "28. ระดับความพึงพอใจต่อภาพอินโฟกราฟฟิกสื่อความหมายในกิจกรรมลานความรู้จากปฏิบัติการของชุมชนท้องถิ่น 4 ภาค (คะแนน 1-5)", section: "Infographic", image: "assets/image1.png", step: 3, required: true },
   { id: "Q29", type: "text", text: "29. ข้อเสนอแนะต่อการเพิ่มระดับความพึงพอใจของภาพอินโฟกราฟฟิกที่ใช้ในเวทีสานพลัง (คำถามปลายเปิด)", step: 3, required: false },
   { id: "Q30", type: "facilities", text: "30. ระดับความพึงพอใจต่อสิ่งอำนวยความสะดวกในเวทีสานพลัง", subfields: ["Q30_Facility_Venue", "Q30_Facility_AV", "Q30_Facility_Catering", "Q30_Facility_Duration"], sublabels: ["สถานที่และสภาพแวดล้อมในการจัดงาน", "อุปกรณ์โสตทัศนูปกรณ์", "อาหารกลางวันและเครื่องดื่ม", "ระยะเวลาในการจัดงาน"], step: 3, required: true },
   { id: "Q31", type: "text", text: "31. ข้อเสนอแนะต่อการเพิ่มระดับความพึงพอใจของสิ่งอำนวยความสะดวกในเวทีสานพลัง (คำถามปลายเปิด)", step: 3, required: false },
@@ -69,11 +69,15 @@ const DEFAULT_SCHEMA = [
 // STATE MANAGER
 let currentSchema = [...DEFAULT_SCHEMA];
 let currentSettings = {
+  id: "default",
   surveyName: "แบบประเมินออนไลน์ ความคิดเห็นและความพึงพอใจต่อภาพรวมของการจัดเวที “สานพลัง สร้างนวัตกรรม สู่สุขภาวะชุมชนที่ยั่งยืน” ปี 2568",
   startTime: "",
   endTime: "",
   isActive: true
 };
+let surveys = []; // รายการแบบสอบถามทั้งหมด
+let selectedSurveyId = ""; // ID แบบสอบถามที่เลือกเพื่อแก้ไขในแผงตั้งค่า
+let selectedDashboardSurveyId = "all"; // ID แบบสอบถามที่เลือกเพื่อดูสถิติกราฟ
 let QUESTIONS_META = {};
 function rebuildQuestionsMeta() {
   QUESTIONS_META = {};
@@ -82,6 +86,18 @@ function rebuildQuestionsMeta() {
   });
 }
 rebuildQuestionsMeta();
+
+function getFilteredAppData() {
+  if (!selectedDashboardSurveyId || selectedDashboardSurveyId === "all") {
+    return appData;
+  }
+  return appData.filter(row => {
+    if (selectedDashboardSurveyId === "default") {
+      return !row.Survey_ID || row.Survey_ID === "default";
+    }
+    return row.Survey_ID === selectedDashboardSurveyId;
+  });
+}
 
 const MOCK_RESPONSES = [];
 function generateMockData() {
@@ -236,6 +252,7 @@ const viewDashboard = document.getElementById('view-dashboard');
 const viewSurvey = document.getElementById('view-survey');
 const btnGoSurvey = document.getElementById('btn-go-survey');
 const btnBackDashboard = document.getElementById('btn-back-dashboard');
+const btnGoAdmin = document.getElementById('btn-go-admin');
 const btnToggleTheme = document.getElementById('btn-toggle-theme');
 const syncStatusText = document.getElementById('sync-status');
 const syncDot = document.querySelector('.sync-dot');
@@ -253,6 +270,14 @@ document.addEventListener("DOMContentLoaded", () => {
   
   // ตรวจเช็คสิทธิ์ล็อกอินสำหรับเปิดดู Dashboard
   initAdminAuth();
+  
+  // Check for direct routing via query parameters
+  const urlParams = new URLSearchParams(window.location.search);
+  if (urlParams.get('v') === 'admin' || urlParams.get('mode') === 'admin') {
+    showView('dashboard');
+  } else {
+    showView('survey');
+  }
 });
 
 // THEME TOGGLE (Light/Dark)
@@ -276,9 +301,47 @@ function setupEventListeners() {
   });
 
   // Navigation
-  btnGoSurvey.addEventListener('click', () => showView('survey'));
+  btnGoSurvey.addEventListener('click', () => {
+    if (selectedSurveyId) {
+      const survey = surveys.find(s => s.id === selectedSurveyId);
+      if (survey && survey.accessToken) {
+        const urlParams = new URLSearchParams(window.location.search);
+        urlParams.set('token', survey.accessToken);
+        urlParams.delete('v');
+        window.history.pushState(null, '', window.location.pathname + '?' + urlParams.toString());
+      }
+    }
+    showView('survey');
+  });
   btnBackDashboard.addEventListener('click', () => showView('dashboard'));
+  if (btnGoAdmin) {
+    btnGoAdmin.addEventListener('click', () => showView('dashboard'));
+  }
   document.getElementById('btn-closed-back-dash').addEventListener('click', () => showView('dashboard'));
+
+  // Bind Regenerate Token
+  const btnRegenToken = document.getElementById('btn-regenerate-token');
+  if (btnRegenToken) {
+    btnRegenToken.addEventListener('click', () => {
+      const tokenInput = document.getElementById('input-set-token');
+      if (tokenInput) {
+        const newToken = "tk_" + Math.random().toString(36).substring(2, 10) + Math.random().toString(36).substring(2, 10);
+        tokenInput.value = newToken;
+        
+        // Also update QR Code and Link immediately
+        const currentUrl = window.location.origin + window.location.pathname + "?token=" + newToken;
+        const linkEl = document.getElementById("qr-url-link");
+        if (linkEl) {
+          linkEl.href = currentUrl;
+          linkEl.innerText = currentUrl;
+        }
+        const qrImg = document.getElementById("qr-code-img");
+        if (qrImg) {
+          qrImg.src = "https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=" + encodeURIComponent(currentUrl);
+        }
+      }
+    });
+  }
 
   // Bind Add Admin form
   const formAddAdmin = document.getElementById('form-add-admin');
@@ -298,28 +361,98 @@ function setupEventListeners() {
     formSettings.addEventListener('submit', handleSettingsSubmit);
   }
 
-  // Bind Builder Top buttons
-  const btnBuilderReset = document.getElementById('btn-builder-reset');
-  if (btnBuilderReset) {
-    btnBuilderReset.addEventListener('click', handleBuilderReset);
-  }
-  const btnBuilderSave = document.getElementById('btn-builder-save');
-  if (btnBuilderSave) {
-    btnBuilderSave.addEventListener('click', saveBuilderSchema);
-  }
+  // ปุ่มเพิ่มคำถามถูกสร้างแบบไดนามิกใน renderBuilder() ของแต่ละส่วนแล้ว (ไม่ต้องผูกที่นี่)
 
   // Bind QR Code Download
   const btnDownloadQr = document.getElementById('btn-download-qr');
   if (btnDownloadQr) {
     btnDownloadQr.addEventListener('click', downloadQRCode);
   }
+
+  // Bind Dashboard Survey Selector
+  const dashSurveySelector = document.getElementById('dashboard-survey-selector');
+  if (dashSurveySelector) {
+    dashSurveySelector.addEventListener('change', (e) => {
+      selectedDashboardSurveyId = e.target.value;
+      renderDashboardOverview();
+    });
+  }
+
+  // Bind Survey List Actions
+  const btnSurveyCreate = document.getElementById('btn-survey-create');
+  if (btnSurveyCreate) {
+    btnSurveyCreate.addEventListener('click', prepareCreateSurvey);
+  }
+  const btnSurveyEdit = document.getElementById('btn-survey-edit');
+  if (btnSurveyEdit) {
+    btnSurveyEdit.addEventListener('click', prepareEditSurvey);
+  }
+  const btnSurveyDelete = document.getElementById('btn-survey-delete');
+  if (btnSurveyDelete) {
+    btnSurveyDelete.addEventListener('click', deleteSelectedSurveys);
+  }
+  const chkSelectAll = document.getElementById('survey-select-all');
+  if (chkSelectAll) {
+    chkSelectAll.addEventListener('change', toggleSelectAllSurveys);
+  }
 }
 
-// LOAD SETTINGS AND SCHEMA FROM SERVER
 function loadPublicSettingsAndSchema() {
+  const urlParams = new URLSearchParams(window.location.search);
+  const targetId = urlParams.get('id');
+  const targetToken = urlParams.get('token');
+  
+  let fetchUrl = APPS_SCRIPT_URL;
+  if (fetchUrl) {
+    const params = [];
+    if (targetToken) params.push("token=" + encodeURIComponent(targetToken));
+    if (targetId) params.push("id=" + encodeURIComponent(targetId));
+    if (params.length > 0) {
+      fetchUrl += (fetchUrl.includes('?') ? '&' : '?') + params.join('&');
+    }
+  }
+  
   if (!APPS_SCRIPT_URL) {
     console.log("ไม่มี APPS_SCRIPT_URL: โหลดสคีมาจาก LocalStorage หรือค่าตั้งต้น");
     loadDefaultSettingsAndSchema();
+    
+    let targetSurvey = null;
+    if (targetToken) {
+      targetSurvey = surveys.find(s => s.accessToken === targetToken);
+    } else if (targetId) {
+      targetSurvey = surveys.find(s => s.id === targetId);
+    }
+    
+    if (targetSurvey) {
+      currentSettings = {
+        id: targetSurvey.id,
+        surveyName: targetSurvey.surveyName,
+        startTime: targetSurvey.startTime,
+        endTime: targetSurvey.endTime,
+        isActive: targetSurvey.isActive,
+        accessToken: targetSurvey.accessToken
+      };
+      currentSchema = targetSurvey.schema || DEFAULT_SCHEMA;
+      rebuildQuestionsMeta();
+      applySettings();
+      renderSurveyForm();
+      renderDashboardQuestionCards();
+      checkSurveyStatus();
+    } else if (targetToken || targetId) {
+      currentSettings = {
+        id: "not_found",
+        surveyName: "ไม่พบแบบสอบถามที่ท่านระบุ",
+        startTime: "",
+        endTime: "",
+        isActive: false,
+        accessToken: ""
+      };
+      currentSchema = [];
+      rebuildQuestionsMeta();
+      applySettings();
+      renderSurveyForm();
+      checkSurveyStatus();
+    }
     return;
   }
   
@@ -327,7 +460,7 @@ function loadPublicSettingsAndSchema() {
     syncStatusText.innerText = "กำลังดาวน์โหลดโครงสร้างคำถาม...";
   }
   
-  fetch(APPS_SCRIPT_URL)
+  fetch(fetchUrl)
     .then(res => {
       if (!res.ok) throw new Error("HTTP error " + res.status);
       return res.json();
@@ -342,12 +475,26 @@ function loadPublicSettingsAndSchema() {
         } else {
           currentSchema = DEFAULT_SCHEMA;
         }
+        if (res.surveys && Array.isArray(res.surveys)) {
+          surveys = res.surveys;
+        } else {
+          surveys = [{
+            id: currentSettings.id || "default",
+            surveyName: currentSettings.surveyName,
+            startTime: currentSettings.startTime,
+            endTime: currentSettings.endTime,
+            isActive: currentSettings.isActive,
+            schema: currentSchema,
+            accessToken: currentSettings.accessToken || ""
+          }];
+        }
         
         rebuildQuestionsMeta();
         applySettings();
         renderSurveyForm();
         renderDashboardQuestionCards();
         checkSurveyStatus();
+        updateDashboardSurveySelector();
         
         if (syncStatusText) {
           syncStatusText.innerText = "เชื่อมต่อและดึงข้อมูลแบบสอบถามแล้ว";
@@ -366,23 +513,70 @@ function loadPublicSettingsAndSchema() {
 }
 
 function loadDefaultSettingsAndSchema() {
-  const localSettings = localStorage.getItem("survey_settings");
-  const localSchema = localStorage.getItem("survey_schema");
-  
-  if (localSettings) {
-    currentSettings = JSON.parse(localSettings);
+  const localSurveys = localStorage.getItem("surveys_list");
+  if (localSurveys) {
+    surveys = JSON.parse(localSurveys);
   } else {
-    currentSettings = {
+    const localSettings = localStorage.getItem("survey_settings");
+    const localSchema = localStorage.getItem("survey_schema");
+    
+    const initialSurvey = {
+      id: "s_default",
       surveyName: "แบบประเมินออนไลน์ ความคิดเห็นและความพึงพอใจต่อภาพรวมของการจัดเวที “สานพลัง สร้างนวัตกรรม สู่สุขภาวะชุมชนที่ยั่งยืน” ปี 2568",
       startTime: "2026-07-03T13:00",
       endTime: "2026-07-05T13:00",
-      isActive: true
+      isActive: true,
+      schema: DEFAULT_SCHEMA
     };
+    
+    if (localSettings) {
+      const parsedSettings = JSON.parse(localSettings);
+      initialSurvey.surveyName = parsedSettings.surveyName || initialSurvey.surveyName;
+      initialSurvey.startTime = parsedSettings.startTime || "";
+      initialSurvey.endTime = parsedSettings.endTime || "";
+      initialSurvey.isActive = parsedSettings.isActive !== undefined ? parsedSettings.isActive : true;
+    }
+    if (localSchema) {
+      initialSurvey.schema = JSON.parse(localSchema);
+    }
+    
+    surveys = [initialSurvey];
+    localStorage.setItem("surveys_list", JSON.stringify(surveys));
   }
   
-  if (localSchema) {
-    currentSchema = JSON.parse(localSchema);
+  // Ensure all surveys have tokens
+  let updatedLocal = false;
+  surveys.forEach(s => {
+    if (!s.accessToken) {
+      s.accessToken = "tk_" + Math.random().toString(36).substring(2, 10) + Math.random().toString(36).substring(2, 10);
+      updatedLocal = true;
+    }
+  });
+  if (updatedLocal) {
+    localStorage.setItem("surveys_list", JSON.stringify(surveys));
+  }
+  
+  let activeSurvey = surveys.find(s => s.isActive);
+  if (!activeSurvey && surveys.length > 0) activeSurvey = surveys[0];
+  
+  if (activeSurvey) {
+    currentSettings = {
+      id: activeSurvey.id,
+      surveyName: activeSurvey.surveyName,
+      startTime: activeSurvey.startTime,
+      endTime: activeSurvey.endTime,
+      isActive: activeSurvey.isActive,
+      accessToken: activeSurvey.accessToken
+    };
+    currentSchema = activeSurvey.schema || DEFAULT_SCHEMA;
   } else {
+    currentSettings = {
+      id: "default",
+      surveyName: "ไม่มีแบบสอบถามที่เปิดใช้งาน",
+      startTime: "",
+      endTime: "",
+      isActive: false
+    };
     currentSchema = DEFAULT_SCHEMA;
   }
   
@@ -391,11 +585,30 @@ function loadDefaultSettingsAndSchema() {
   renderSurveyForm();
   renderDashboardQuestionCards();
   checkSurveyStatus();
+  updateDashboardSurveySelector();
   
   if (syncStatusText) {
     syncStatusText.innerText = "ใช้งานโหมดจำลอง (Local Mode)";
     syncStatusText.style.color = "var(--text-muted)";
   }
+}
+
+function updateDashboardSurveySelector() {
+  const selector = document.getElementById("dashboard-survey-selector");
+  if (!selector) return;
+  
+  const currentVal = selector.value || "all";
+  selector.innerHTML = '<option value="all">ดูทุกแบบสอบถามรวมกัน</option>';
+  
+  surveys.forEach(s => {
+    const opt = document.createElement("option");
+    opt.value = s.id;
+    opt.innerText = s.surveyName;
+    selector.appendChild(opt);
+  });
+  
+  selector.value = currentVal;
+  if (!selector.value) selector.value = "all";
 }
 
 function applySettings() {
@@ -416,31 +629,65 @@ function checkSurveyStatus() {
   
   const now = new Date();
   let isClosed = !currentSettings.isActive;
+  let closedMessage = "แบบสอบถามถูกปิดใช้งานชั่วคราวโดยผู้ดูแลระบบ";
+  
+  // Check Access Token requirement for non-admin users
+  const urlParams = new URLSearchParams(window.location.search);
+  const urlToken = urlParams.get('token');
+  const isAdmin = sessionStorage.getItem("admin_token") !== null;
+  
+  if (!isAdmin) {
+    if (!urlToken) {
+      isClosed = true;
+      closedMessage = "กรุณาใช้งานผ่านลิงก์แบบสอบถามที่มีรหัสเข้าถึง (Access Token) หรือสแกน QR Code ที่ผู้จัดงานเตรียมไว้ให้";
+    } else if (currentSettings.accessToken && urlToken !== currentSettings.accessToken) {
+      isClosed = true;
+      closedMessage = "รหัสสิทธิ์เข้าถึง (Access Token) ของแบบสอบถามนี้ไม่ถูกต้องหรือไม่ได้รับสิทธิ์ในการประเมินผล";
+    }
+  }
   
   if (currentSettings.startTime) {
-    const start = new Date(currentSettings.startTime);
-    if (!isNaN(start.getTime()) && now < start) {
+    const start = parseThaiDateTime(currentSettings.startTime);
+    if (start && now < start) {
       isClosed = true;
-      document.getElementById("closed-pane-message").innerText = "แบบสอบถามยังไม่เปิดให้กรอกข้อมูล (จะเปิดให้กรอกตั้งแต่วันที่ " + formatThaiDateTime(start) + ")";
+      closedMessage = "แบบสอบถามยังไม่เปิดให้กรอกข้อมูล (จะเปิดให้กรอกตั้งแต่วันที่ " + formatThaiDateTime(start) + ")";
     }
   }
   
   if (currentSettings.endTime) {
-    const end = new Date(currentSettings.endTime);
-    if (!isNaN(end.getTime()) && now > end) {
+    const end = parseThaiDateTime(currentSettings.endTime);
+    if (end && now > end) {
       isClosed = true;
-      document.getElementById("closed-pane-message").innerText = "แบบสอบถามสิ้นสุดระยะเวลาการเก็บข้อมูลแล้ว (ปิดรับคำตอบเมื่อวันที่ " + formatThaiDateTime(end) + ")";
+      closedMessage = "แบบสอบถามสิ้นสุดระยะเวลาการเก็บข้อมูลแล้ว (ปิดรับคำตอบเมื่อวันที่ " + formatThaiDateTime(end) + ")";
     }
   }
   
-  if (!currentSettings.isActive) {
-    document.getElementById("closed-pane-message").innerText = "แบบสอบถามถูกปิดใช้งานชั่วคราวโดยผู้ดูแลระบบ";
+  if (!currentSettings.isActive && currentSettings.id !== "not_found" && (!urlToken || urlToken === currentSettings.accessToken)) {
+    closedMessage = "แบบสอบถามถูกปิดใช้งานชั่วคราวโดยผู้ดูแลระบบ";
+  }
+  
+  if (currentSettings.id === "not_found") {
+    isClosed = true;
+    closedMessage = "ไม่พบแบบสอบถามที่ระบุ หรือไม่มีรหัสสิทธิ์เข้าถึงที่ถูกต้อง";
   }
   
   if (isClosed) {
     if (closedPane) closedPane.classList.remove("hidden");
     if (activeHeader) activeHeader.classList.add("hidden");
     if (form) form.classList.add("hidden");
+    
+    const msgEl = document.getElementById("closed-pane-message");
+    if (msgEl) msgEl.innerText = closedMessage;
+    
+    // Show/hide back to dashboard on closed screen depending on admin session
+    const btnClosedBackDash = document.getElementById("btn-closed-back-dash");
+    if (btnClosedBackDash) {
+      if (sessionStorage.getItem("admin_token")) {
+        btnClosedBackDash.classList.remove("hidden");
+      } else {
+        btnClosedBackDash.classList.add("hidden");
+      }
+    }
   } else {
     if (closedPane) closedPane.classList.add("hidden");
     if (activeHeader) activeHeader.classList.remove("hidden");
@@ -449,21 +696,71 @@ function checkSurveyStatus() {
 }
 
 function formatThaiDateTime(date) {
-  const months = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
-  const day = date.getDate();
-  const month = months[date.getMonth()];
-  const year = date.getFullYear() + 543;
+  if (!date) return "";
+  const day = String(date.getDate()).padStart(2, '0');
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const year = date.getFullYear() + 543; // ปี พ.ศ.
   const hours = String(date.getHours()).padStart(2, '0');
   const minutes = String(date.getMinutes()).padStart(2, '0');
-  return `${day} ${month} ${year} เวลา ${hours}:${minutes} น.`;
+  return `${day}/${month}/${year} เวลา ${hours}:${minutes} น.`;
+}
+
+function parseThaiDateTime(str) {
+  if (!str) return null;
+  // Clean string and replace 'เวลา' and 'น.' with spaces, then squeeze spaces
+  const cleanStr = str.replace(/เวลา/g, ' ').replace(/น\./g, ' ').replace(/\s+/g, ' ').trim();
+  
+  // Format check: "DD/MM/YYYY" or "DD/MM/YYYY HH:mm"
+  // But also support ISO string format like "2026-06-08T13:00" if it was loaded from Sheets initially
+  if (cleanStr.includes('T') || cleanStr.includes('-')) {
+    const d = new Date(cleanStr);
+    return isNaN(d.getTime()) ? null : d;
+  }
+  
+  const parts = cleanStr.split(' ');
+  const datePart = parts[0]; // "DD/MM/YYYY"
+  const timePart = parts[1] || "00:00"; // "HH:mm"
+  
+  const dateSubparts = datePart.split('/');
+  if (dateSubparts.length !== 3) return null;
+  
+  const day = parseInt(dateSubparts[0], 10);
+  const month = parseInt(dateSubparts[1], 10) - 1; // 0-indexed month
+  let year = parseInt(dateSubparts[2], 10);
+  
+  // Convert Buddhist year (>2400) to Christian year
+  if (year > 2400) {
+    year -= 543;
+  }
+  
+  const timeSubparts = timePart.split(':');
+  const hours = parseInt(timeSubparts[0] || 0, 10);
+  const minutes = parseInt(timeSubparts[1] || 0, 10);
+  
+  const parsedDate = new Date(year, month, day, hours, minutes);
+  return isNaN(parsedDate.getTime()) ? null : parsedDate;
+}
+
+function convertToInputFormat(val) {
+  if (!val) return "";
+  // If already in DD/MM/YYYY format, return directly
+  if (/^\d{2}\/\d{2}\/\d{4}/.test(val)) return val;
+  
+  const date = new Date(val);
+  if (isNaN(date.getTime())) return val;
+  
+  const day = String(date.getDate()).padStart(2, '0');
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const year = date.getFullYear() + 543; // ปี พ.ศ.
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  
+  return `${day}/${month}/${year} ${hours}:${minutes}`;
 }
 
 // CHECK DUPLICATE SUBMISSION STATE
 function checkIfSurveyCompleted() {
-  const completed = localStorage.getItem('survey_completed') || getCookie('survey_completed');
-  if (completed) {
-    btnGoSurvey.classList.add('hidden');
-  }
+  // Allow multiple submissions
 }
 
 function showView(viewName) {
@@ -473,24 +770,44 @@ function showView(viewName) {
   if (viewDashboard) viewDashboard.classList.remove('active');
   if (viewSurvey) viewSurvey.classList.remove('active');
   
-  btnGoSurvey.classList.remove('hidden');
-  btnBackDashboard.classList.add('hidden');
-  
   checkIfSurveyCompleted();
   checkSurveyStatus();
 
   if (viewName === 'dashboard') {
     if (viewDashboard) viewDashboard.classList.add('active');
     renderDashboardOverview();
+    
+    if (btnGoSurvey) btnGoSurvey.classList.remove('hidden');
+    if (btnBackDashboard) btnBackDashboard.classList.add('hidden');
+    if (btnGoAdmin) btnGoAdmin.classList.add('hidden');
+    
+    // Update URL to ?v=admin
+    const urlParams = new URLSearchParams(window.location.search);
+    urlParams.set('v', 'admin');
+    urlParams.delete('mode');
+    const newSearch = urlParams.toString();
+    window.history.pushState(null, '', window.location.pathname + (newSearch ? '?' + newSearch : ''));
   } else if (viewName === 'survey') {
-    if (localStorage.getItem('survey_completed') || getCookie('survey_completed')) {
-      alert("ท่านได้ทำแบบสอบถามบนอุปกรณ์นี้เรียบร้อยแล้ว และระบบไม่อนุญาตให้กรอกซ้ำ ขอขอบพระคุณครับ");
-      if (viewDashboard) viewDashboard.classList.add('active');
-      return;
-    }
     if (viewSurvey) viewSurvey.classList.add('active');
-    btnGoSurvey.classList.add('hidden');
-    btnBackDashboard.classList.remove('hidden');
+    
+    if (btnGoSurvey) btnGoSurvey.classList.add('hidden');
+    
+    const token = sessionStorage.getItem("admin_token");
+    if (token) {
+      if (btnBackDashboard) btnBackDashboard.classList.remove('hidden');
+      if (btnGoAdmin) btnGoAdmin.classList.add('hidden');
+    } else {
+      if (btnBackDashboard) btnBackDashboard.classList.add('hidden');
+      if (btnGoAdmin) btnGoAdmin.classList.remove('hidden');
+    }
+    
+    // Update URL to remove v=admin or v=survey (keeping id if any)
+    const urlParams = new URLSearchParams(window.location.search);
+    urlParams.delete('v');
+    urlParams.delete('mode');
+    const newSearch = urlParams.toString();
+    window.history.pushState(null, '', window.location.pathname + (newSearch ? '?' + newSearch : ''));
+    
     goToWizardStep(0);
   }
 }
@@ -574,8 +891,13 @@ function validateStep(stepNum) {
         const checked = pane.querySelector(`input[name="${q.id}"]:checked`);
         if (!checked) qValid = false;
       }
+      else if (q.type === "dropdown") {
+        const sel = pane.querySelector(`select[name="${q.id}"]`);
+        if (!sel || !sel.value) qValid = false;
+      }
       else if (q.type === "numeric") {
-        const val = pane.querySelector(`input[name="${q.id}"]`).value;
+        const el = pane.querySelector(`input[name="${q.id}"]`);
+        const val = el ? el.value : "";
         if (val === "" || isNaN(val)) {
           qValid = false;
         } else {
@@ -585,7 +907,8 @@ function validateStep(stepNum) {
         }
       }
       else if (q.type === "text") {
-        const val = pane.querySelector(`input[name="${q.id}"]`).value.trim();
+        const el = pane.querySelector(`input[name="${q.id}"], textarea[name="${q.id}"]`);
+        const val = el ? el.value.trim() : "";
         if (val === "") {
           qValid = false;
         } else if (q.pattern) {
@@ -634,114 +957,203 @@ function renderSurveyForm() {
   const step1 = document.getElementById("step-1-content");
   const likertWrapper = document.getElementById("likert-questions-wrapper");
   const step3 = document.getElementById("step-3-content");
-  
+
   if (!step1 || !likertWrapper || !step3) return;
 
-  // 1. Render Step 1
+  // ---------- ส่วนที่ 1 ----------
   let step1Html = "";
   const step1Questions = currentSchema.filter(q => q.step === 1);
-  
   step1Questions.forEach(q => {
-    if (q.id === "Attendance_Years") {
+    if (q.type === "years-checkbox" || q.id === "Attendance_Years") {
       step1Html += `
         <div class="form-group hidden" id="attendance-years-wrapper">
-          <label class="form-label">${q.text}</label>
-          <div class="checkbox-grid">
-            <!-- Populated dynamically -->
-          </div>
+          <label class="form-label">${escapeHtml(q.text)}</label>
+          <div class="checkbox-grid"><!-- Populated dynamically --></div>
           <input type="hidden" name="Attendance_Years" id="input-attend-years">
         </div>
       `;
     } else {
-      step1Html += `<div class="form-group" data-qid="${q.id}">`;
-      step1Html += `<label class="form-label">${q.text} ${q.required ? '<span style="color:var(--danger)">*</span>' : ""}</label>`;
-      
-      if (q.type === "categorical") {
-        step1Html += `<div class="radio-options-grid">`;
-        q.choices.forEach(choice => {
-          step1Html += `
-            <label class="custom-radio">
-              <input type="radio" name="${q.id}" value="${choice}">
-              <span class="radio-label-text">${choice}</span>
-            </label>
-          `;
-        });
-        step1Html += `</div>`;
-        
-        if (q.hasOther) {
-          step1Html += `
-            <div class="div-other hidden" id="div-${q.id}-other" style="margin-top:8px;">
-              <input type="text" name="${q.id}_Other" class="form-control" placeholder="โปรดระบุรายละเอียด...">
-            </div>
-          `;
-        }
-      }
-      else if (q.type === "multi-select") {
-        step1Html += `<div class="checkbox-grid-channels">`;
-        q.choices.forEach(choice => {
-          step1Html += `
-            <label class="custom-checkbox">
-              <input type="checkbox" name="${q.id}_List" value="${choice}">
-              <span class="checkbox-box"></span>
-              <span class="checkbox-text">${choice}</span>
-            </label>
-          `;
-        });
-        step1Html += `</div>`;
-        
-        if (q.hasOther) {
-          step1Html += `
-            <div class="div-other hidden" id="div-${q.id}-other" style="margin-top:8px;">
-              <input type="text" name="${q.id}_Other" class="form-control" placeholder="โปรดระบุรายละเอียด...">
-            </div>
-          `;
-        }
-      }
-      else if (q.type === "numeric") {
-        step1Html += `
-          <input type="number" name="${q.id}" id="input-${q.id}" class="form-control" 
-                 min="${q.min !== undefined ? q.min : ''}" 
-                 max="${q.max !== undefined ? q.max : ''}" 
-                 placeholder="${q.text}">
-        `;
-      }
-      else if (q.type === "text") {
-        step1Html += `
-          <input type="text" name="${q.id}" class="form-control" placeholder="${q.text}">
-        `;
-      }
-      
+      step1Html += `<div class="form-group" data-qid="${escapeHtml(q.id)}">`;
+      step1Html += renderAnswerField(q);
       step1Html += `<div class="error-message">กรุณากรอกข้อมูลในข้อนี้ให้ถูกต้อง</div>`;
       step1Html += `</div>`;
     }
   });
-  
   step1.innerHTML = step1Html;
-  
   generateYearsCheckboxes();
-  
-  // Bind toggle events for Step 1
-  step1Questions.forEach(q => {
-    if (q.hasOther) {
-      const radios = step1.querySelectorAll(`input[name="${q.id}"]`);
-      radios.forEach(r => {
-        r.addEventListener('change', () => {
-          const isOther = step1.querySelector(`input[name="${q.id}"]:checked`)?.value === "อื่น ๆ";
-          document.getElementById(`div-${q.id}-other`).classList.toggle('hidden', !isOther);
-        });
-      });
-      
-      const checkboxes = step1.querySelectorAll(`input[name="${q.id}_List"]`);
-      checkboxes.forEach(c => {
-        c.addEventListener('change', () => {
-          const checked = Array.from(step1.querySelectorAll(`input[name="${q.id}_List"]:checked`)).map(el => el.value);
-          document.getElementById(`div-${q.id}-other`).classList.toggle('hidden', !checked.includes("อื่น ๆ"));
-        });
-      });
+  bindAnswerFieldEvents(step1, step1Questions);
+
+  // ---------- ส่วนที่ 2 ----------
+  let likertHtml = "";
+  const step2Questions = currentSchema.filter(q => q.step === 2);
+  step2Questions.forEach(q => {
+    if (q.type === "likert") {
+      const sectionName = q.section === "Context" ? "ด้านบริบทเวทีสานพลัง (Context)" :
+                          q.section === "Input" ? "ด้านปัจจัยนำเข้า (Input)" :
+                          q.section === "Process" ? "ด้านกระบวนการจัดการ (Process)" :
+                          q.section === "Output" ? "ด้านผลลัพธ์เวทีฯ (Output/Outcome)" : "";
+      likertHtml += `
+        <div class="likert-form-card" data-qid="${escapeHtml(q.id)}">
+          <div class="likert-card-header">
+            <span class="likert-q-num">${escapeHtml(q.id)}${sectionName ? " • " + sectionName : ""}</span>
+          </div>
+          <div class="likert-q-text">${escapeHtml(q.text)}</div>
+          ${buildScoreRadios(q.id, 5)}
+          <div class="error-message">กรุณาให้คะแนนข้อคำถามนี้</div>
+        </div>
+      `;
+    } else {
+      likertHtml += `<div class="form-group" data-qid="${escapeHtml(q.id)}" style="margin-bottom:16px;">`;
+      likertHtml += renderAnswerField(q);
+      likertHtml += `<div class="error-message">กรุณากรอกข้อมูลในข้อนี้ให้ถูกต้อง</div>`;
+      likertHtml += `</div>`;
     }
-    
+  });
+  likertWrapper.innerHTML = likertHtml;
+  bindAnswerFieldEvents(likertWrapper, step2Questions);
+
+  // ---------- ส่วนที่ 3 ----------
+  let step3Html = "";
+  const step3Questions = currentSchema.filter(q => q.step === 3);
+  step3Questions.forEach(q => {
+    step3Html += `<div class="form-group" data-qid="${escapeHtml(q.id)}">`;
+    step3Html += renderAnswerField(q);
+    step3Html += `<div class="error-message">กรุณากรอกข้อมูลในข้อนี้ให้ถูกต้อง</div>`;
+    step3Html += `</div>`;
+  });
+  step3.innerHTML = step3Html;
+  bindAnswerFieldEvents(step3, step3Questions);
+}
+
+// สร้างปุ่มให้คะแนนแบบเรดิโอ 1..max (ใช้กับ Likert และ facilities)
+function buildScoreRadios(name, max) {
+  let h = '<div class="radio-grid-row">';
+  for (let i = 1; i <= max; i++) {
+    h += `<label class="btn-radio-score"><input type="radio" name="${escapeHtml(name)}" value="${i}"><span>${i}</span></label>`;
+  }
+  h += '</div>';
+  return h;
+}
+
+// ช่อง "อื่น ๆ โปรดระบุ"
+function otherInputDiv(id) {
+  return `
+    <div class="div-other hidden" id="div-${escapeHtml(id)}-other" style="margin-top:8px;">
+      <input type="text" name="${escapeHtml(id)}_Other" class="form-control" placeholder="โปรดระบุรายละเอียด...">
+    </div>
+  `;
+}
+
+// สร้าง HTML (label + ช่องกรอกคำตอบ) ของคำถามหนึ่งข้อตามรูปแบบการตอบ — ใช้ได้ทุกส่วน (step 1/2/3)
+function renderAnswerField(q) {
+  const star = q.required ? ' <span style="color:var(--danger)">*</span>' : "";
+  const label = `<label class="form-label">${escapeHtml(q.text)}${star}</label>`;
+  const choices = q.choices || [];
+
+  switch (q.type) {
+    case "categorical": {
+      let h = label + `<div class="radio-options-grid">`;
+      choices.forEach(choice => {
+        h += `<label class="custom-radio"><input type="radio" name="${escapeHtml(q.id)}" value="${escapeHtml(choice)}"><span class="radio-label-text">${escapeHtml(choice)}</span></label>`;
+      });
+      h += `</div>`;
+      if (q.hasOther) h += otherInputDiv(q.id);
+      return h;
+    }
+    case "multi-select": {
+      let h = label + `<div class="checkbox-grid-channels">`;
+      choices.forEach(choice => {
+        h += `<label class="custom-checkbox"><input type="checkbox" name="${escapeHtml(q.id)}_List" value="${escapeHtml(choice)}"><span class="checkbox-box"></span><span class="checkbox-text">${escapeHtml(choice)}</span></label>`;
+      });
+      h += `</div>`;
+      if (q.hasOther) h += otherInputDiv(q.id);
+      return h;
+    }
+    case "dropdown": {
+      let h = label + `<select name="${escapeHtml(q.id)}" class="form-control"><option value="">-- กรุณาเลือก --</option>`;
+      choices.forEach(choice => {
+        h += `<option value="${escapeHtml(choice)}">${escapeHtml(choice)}</option>`;
+      });
+      h += `</select>`;
+      if (q.hasOther) h += otherInputDiv(q.id);
+      return h;
+    }
+    case "numeric":
+      return label + `<input type="number" name="${escapeHtml(q.id)}" id="input-${escapeHtml(q.id)}" class="form-control" min="${q.min !== undefined ? q.min : ''}" max="${q.max !== undefined ? q.max : ''}" placeholder="${escapeHtml(q.text)}">`;
+    case "text":
+      if (q.multiline) {
+        return label + `<textarea name="${escapeHtml(q.id)}" rows="3" class="form-control" placeholder="พิมพ์คำตอบที่นี่..."></textarea>`;
+      }
+      return label + `<input type="text" name="${escapeHtml(q.id)}" class="form-control" placeholder="${escapeHtml(q.text)}">`;
+    case "likert": {
+      let h = label;
+      if (q.image) {
+        h += `<div class="infographic-preview-box" style="margin-bottom:16px;"><img src="${escapeHtml(q.image)}" alt="ภาพประกอบ" style="max-width:100%; height:auto; border-radius:8px; border:1px solid var(--border-color); display:block; margin:0 auto;"></div>`;
+      }
+      h += buildScoreRadios(q.id, 5);
+      return h;
+    }
+    case "score10": {
+      const valLabel = "val-" + q.id;
+      return label + `
+        <div class="slider-wrapper">
+          <input type="range" name="${escapeHtml(q.id)}" min="1" max="10" value="10" class="custom-slider" data-vallabel="${escapeHtml(valLabel)}">
+          <div class="slider-value-display">คะแนนที่ให้: <span id="${escapeHtml(valLabel)}" class="slider-val" style="font-weight:700; color:var(--accent)">10</span> / 10</div>
+        </div>
+      `;
+    }
+    case "ranking": {
+      let h = label + `<div class="ranking-sort-container"><ul id="sortable-${escapeHtml(q.id)}" class="ranking-list" data-qid="${escapeHtml(q.id)}">`;
+      choices.forEach((choice, idx) => {
+        h += `<li class="ranking-item" draggable="true" data-id="${escapeHtml(choice)}"><span class="rank-badge">${idx + 1}</span><span class="rank-text">${escapeHtml(choice)}</span><span class="rank-handle">☰</span></li>`;
+      });
+      h += `</ul></div>`;
+      choices.forEach((choice, idx) => {
+        h += `<input type="hidden" name="${escapeHtml(q.id)}_Rank${idx + 1}" id="input-${escapeHtml(q.id)}-r${idx + 1}" value="${escapeHtml(choice)}">`;
+      });
+      return h;
+    }
+    case "facilities": {
+      let h = `<label class="form-label" style="font-weight:600; margin-bottom:12px;">${escapeHtml(q.text)}${star}</label><div class="facilities-rating-card">`;
+      (q.subfields || []).forEach((sub, idx) => {
+        const sublabel = (q.sublabels && q.sublabels[idx] !== undefined) ? q.sublabels[idx] : sub;
+        h += `<div class="sub-rate-item"><span class="sub-rate-title">${escapeHtml(sublabel)} <span style="color:var(--danger)">*</span></span>${buildScoreRadios(sub, 5)}<div class="error-message">กรุณาให้คะแนนส่วนนี้</div></div>`;
+      });
+      h += `</div>`;
+      return h;
+    }
+    default:
+      return label + `<input type="text" name="${escapeHtml(q.id)}" class="form-control" placeholder="${escapeHtml(q.text)}">`;
+  }
+}
+
+// ผูกอีเวนต์หลัง render: ตัวเลือก "อื่น ๆ", สไลเดอร์คะแนน, การจัดเรียงลำดับ และการเชื่อมจำนวนครั้ง->ปีที่เข้าร่วม
+function bindAnswerFieldEvents(scope, questions) {
+  questions.forEach(q => {
+    if (q.hasOther) {
+      if (q.type === "categorical" || q.type === "dropdown") {
+        scope.querySelectorAll(`[name="${q.id}"]`).forEach(el => {
+          el.addEventListener('change', () => {
+            const sel = scope.querySelector(`select[name="${q.id}"]`);
+            const checkedVal = sel ? sel.value : (scope.querySelector(`input[name="${q.id}"]:checked`)?.value || "");
+            const div = document.getElementById(`div-${q.id}-other`);
+            if (div) div.classList.toggle('hidden', checkedVal !== "อื่น ๆ");
+          });
+        });
+      } else if (q.type === "multi-select") {
+        scope.querySelectorAll(`input[name="${q.id}_List"]`).forEach(c => {
+          c.addEventListener('change', () => {
+            const checked = Array.from(scope.querySelectorAll(`input[name="${q.id}_List"]:checked`)).map(el => el.value);
+            const div = document.getElementById(`div-${q.id}-other`);
+            if (div) div.classList.toggle('hidden', !checked.includes("อื่น ๆ"));
+          });
+        });
+      }
+    }
+
+    // เทมเพลต: จำนวนครั้งที่เข้าร่วม > 0 จึงแสดงช่องเลือกปี
     if (q.id === "Attendance_Count") {
-      const input = step1.querySelector(`#input-Attendance_Count`);
+      const input = scope.querySelector(`#input-Attendance_Count`);
       if (input) {
         input.addEventListener('input', (e) => {
           const val = parseInt(e.target.value);
@@ -752,7 +1164,8 @@ function renderSurveyForm() {
             } else {
               wrapper.classList.add('hidden');
               wrapper.querySelectorAll('input:checked').forEach(c => c.checked = false);
-              document.getElementById('input-attend-years').value = "";
+              const iy = document.getElementById('input-attend-years');
+              if (iy) iy.value = "";
             }
           }
         });
@@ -760,203 +1173,17 @@ function renderSurveyForm() {
     }
   });
 
-  // 2. Render Step 2
-  let likertHtml = "";
-  const step2Questions = currentSchema.filter(q => q.step === 2 && q.type === "likert");
-  
-  step2Questions.forEach(q => {
-    const sectionName = q.section === "Context" ? "ด้านบริบทเวทีสานพลัง (Context)" :
-                        q.section === "Input" ? "ด้านปัจจัยนำเข้า (Input)" :
-                        q.section === "Process" ? "ด้านกระบวนการจัดการ (Process)" : "ด้านผลลัพธ์เวทีฯ (Output/Outcome)";
-    
-    likertHtml += `
-      <div class="likert-form-card" data-qid="${q.id}">
-        <div class="likert-card-header">
-          <span class="likert-q-num">${q.id} • ${sectionName}</span>
-        </div>
-        <div class="likert-q-text">${q.text}</div>
-        <div class="radio-grid-row">
-          <label class="btn-radio-score">
-            <input type="radio" name="${q.id}" value="1"><span>1</span>
-          </label>
-          <label class="btn-radio-score">
-            <input type="radio" name="${q.id}" value="2"><span>2</span>
-          </label>
-          <label class="btn-radio-score">
-            <input type="radio" name="${q.id}" value="3"><span>3</span>
-          </label>
-          <label class="btn-radio-score">
-            <input type="radio" name="${q.id}" value="4"><span>4</span>
-          </label>
-          <label class="btn-radio-score">
-            <input type="radio" name="${q.id}" value="5"><span>5</span>
-          </label>
-        </div>
-        <div class="error-message">กรุณาให้คะแนนข้อคำถามนี้</div>
-      </div>
-    `;
-  });
-  likertWrapper.innerHTML = likertHtml;
-
-  // 3. Render Step 3
-  let step3Html = "";
-  const step3Questions = currentSchema.filter(q => q.step === 3);
-  
-  step3Questions.forEach(q => {
-    step3Html += `<div class="form-group" data-qid="${q.id}">`;
-    
-    if (q.type === "ranking") {
-      step3Html += `
-        <label class="form-label">${q.text}</label>
-        <div class="ranking-sort-container">
-          <ul id="sortable-activities" class="ranking-list">
-      `;
-      q.choices.forEach((choice, idx) => {
-        step3Html += `
-          <li class="ranking-item" draggable="true" data-id="${choice}">
-            <span class="rank-badge">${idx + 1}</span>
-            <span class="rank-text">${choice}</span>
-            <span class="rank-handle">☰</span>
-          </li>
-        `;
-      });
-      step3Html += `
-          </ul>
-        </div>
-      `;
-      q.choices.forEach((choice, idx) => {
-        step3Html += `<input type="hidden" name="${q.id}_Rank${idx + 1}" id="input-${q.id}-r${idx + 1}" value="${choice}">`;
-      });
-    }
-    else if (q.type === "likert") {
-      step3Html += `
-        <label class="form-label">${q.text} ${q.required ? '<span style="color:var(--danger)">*</span>' : ""}</label>
-        <div class="infographic-preview-box" style="margin-bottom:16px;">
-          <img src="assets/image1.png" alt="อินโฟกราฟฟิก" style="max-width:100%; height:auto; border-radius:8px; border:1px solid var(--border-color); display:block; margin:0 auto;">
-        </div>
-        <div class="radio-grid-row">
-          <label class="btn-radio-score">
-            <input type="radio" name="${q.id}" value="1"><span>1</span>
-          </label>
-          <label class="btn-radio-score">
-            <input type="radio" name="${q.id}" value="2"><span>2</span>
-          </label>
-          <label class="btn-radio-score">
-            <input type="radio" name="${q.id}" value="3"><span>3</span>
-          </label>
-          <label class="btn-radio-score">
-            <input type="radio" name="${q.id}" value="4"><span>4</span>
-          </label>
-          <label class="btn-radio-score">
-            <input type="radio" name="${q.id}" value="5"><span>5</span>
-          </label>
-        </div>
-      `;
-    }
-    else if (q.type === "facilities") {
-      step3Html += `
-        <label class="form-label" style="font-weight:600; margin-bottom:12px;">${q.text}</label>
-        <div class="facilities-rating-card">
-      `;
-      q.subfields.forEach((sub, idx) => {
-        const sublabel = q.sublabels ? q.sublabels[idx] : sub;
-        step3Html += `
-          <div class="sub-rate-item">
-            <span class="sub-rate-title">${sublabel} <span style="color:var(--danger)">*</span></span>
-            <div class="radio-grid-row">
-              <label class="btn-radio-score">
-                <input type="radio" name="${sub}" value="1"><span>1</span>
-              </label>
-              <label class="btn-radio-score">
-                <input type="radio" name="${sub}" value="2"><span>2</span>
-              </label>
-              <label class="btn-radio-score">
-                <input type="radio" name="${sub}" value="3"><span>3</span>
-              </label>
-              <label class="btn-radio-score">
-                <input type="radio" name="${sub}" value="4"><span>4</span>
-              </label>
-              <label class="btn-radio-score">
-                <input type="radio" name="${sub}" value="5"><span>5</span>
-              </label>
-            </div>
-            <div class="error-message">กรุณาให้คะแนนส่วนนี้</div>
-          </div>
-        `;
-      });
-      step3Html += `</div>`;
-    }
-    else if (q.type === "score10") {
-      const valLabel = q.id.replace('Q', 'val-q');
-      step3Html += `
-        <label class="form-label">${q.text} ${q.required ? '<span style="color:var(--danger)">*</span>' : ""}</label>
-        <div class="slider-wrapper">
-          <input type="range" name="${q.id}" min="1" max="10" value="10" class="custom-slider">
-          <div class="slider-value-display">
-            คะแนนที่ให้: <span id="${valLabel}" class="slider-val" style="font-weight:700; color:var(--accent)">10</span> / 10
-          </div>
-        </div>
-      `;
-    }
-    else if (q.type === "text") {
-      step3Html += `
-        <label class="form-label">${q.text}</label>
-        <textarea name="${q.id}" rows="3" class="form-control" placeholder="พิมพ์คำตอบที่นี่..."></textarea>
-      `;
-    }
-    else if (q.type === "multi-select") {
-      step3Html += `<label class="form-label">${q.text} ${q.required ? '<span style="color:var(--danger)">*</span>' : ""}</label>`;
-      step3Html += `<div class="checkbox-grid-channels">`;
-      q.choices.forEach(choice => {
-        step3Html += `
-          <label class="custom-checkbox">
-            <input type="checkbox" name="${q.id}_List" value="${choice}">
-            <span class="checkbox-box"></span>
-            <span class="checkbox-text">${choice}</span>
-          </label>
-        `;
-      });
-      step3Html += `</div>`;
-      
-      if (q.hasOther) {
-        step3Html += `
-          <div class="div-other hidden" id="div-${q.id}-other" style="margin-top:8px;">
-            <input type="text" name="${q.id}_Other" class="form-control" placeholder="โปรดระบุรายละเอียด...">
-          </div>
-        `;
-      }
-    }
-    
-    step3Html += `<div class="error-message">กรุณากรอกข้อมูลในข้อนี้ให้ถูกต้อง</div>`;
-    step3Html += `</div>`;
-  });
-  
-  step3.innerHTML = step3Html;
-  
-  setupRankingSortable();
-  
-  // Bind slider display update
-  step3.querySelectorAll('.custom-slider').forEach(slider => {
+  // สไลเดอร์คะแนน 1-10
+  scope.querySelectorAll('.custom-slider').forEach(slider => {
     slider.addEventListener('input', (e) => {
-      const name = e.target.getAttribute('name');
-      const valLabel = name.replace('Q', 'val-q');
-      const valEl = document.getElementById(valLabel);
+      const valLabel = e.target.getAttribute('data-vallabel');
+      const valEl = valLabel ? document.getElementById(valLabel) : null;
       if (valEl) valEl.innerText = e.target.value;
     });
   });
-  
-  // Bind other specify checkboxes in step 3
-  step3Questions.forEach(q => {
-    if (q.hasOther) {
-      const checkboxes = step3.querySelectorAll(`input[name="${q.id}_List"]`);
-      checkboxes.forEach(c => {
-        c.addEventListener('change', () => {
-          const checked = Array.from(step3.querySelectorAll(`input[name="${q.id}_List"]:checked`)).map(el => el.value);
-          document.getElementById(`div-${q.id}-other`).classList.toggle('hidden', !checked.includes("อื่น ๆ"));
-        });
-      });
-    }
-  });
+
+  // การจัดเรียงลำดับ (ranking)
+  setupRankingSortable();
 }
 
 function generateYearsCheckboxes() {
@@ -986,10 +1213,16 @@ function generateYearsCheckboxes() {
   });
 }
 
-// Q27 DRAG-AND-DROP OR CLICK-TO-SORT
+// DRAG-AND-DROP หรือ CLICK-TO-SORT — รองรับคำถามแบบ ranking ได้หลายข้อพร้อมกัน
 function setupRankingSortable() {
-  const list = document.getElementById('sortable-activities');
-  if (!list) return;
+  document.querySelectorAll('.ranking-list').forEach(list => {
+    if (list.dataset.rankBound === "1") return; // กันผูกอีเวนต์ซ้ำ
+    list.dataset.rankBound = "1";
+    setupOneRankingList(list);
+  });
+}
+
+function setupOneRankingList(list) {
   let draggingItem = null;
 
   list.querySelectorAll('.ranking-item').forEach(item => {
@@ -1001,7 +1234,17 @@ function setupRankingSortable() {
     item.addEventListener('dragend', () => {
       draggingItem = null;
       item.classList.remove('dragging');
-      updateRankingValues();
+      updateRankingValuesFor(list);
+    });
+
+    item.addEventListener('click', () => {
+      const prev = item.previousElementSibling;
+      if (prev) {
+        list.insertBefore(item, prev);
+      } else {
+        list.appendChild(item);
+      }
+      updateRankingValuesFor(list);
     });
   });
 
@@ -1015,24 +1258,12 @@ function setupRankingSortable() {
     }
   });
 
-  list.querySelectorAll('.ranking-item').forEach(item => {
-    item.addEventListener('click', () => {
-      const prev = item.previousElementSibling;
-      if (prev) {
-        list.insertBefore(item, prev);
-      } else {
-        list.appendChild(item);
-      }
-      updateRankingValues();
-    });
-  });
-  
-  updateRankingValues();
+  updateRankingValuesFor(list);
 }
 
 function getDragAfterElement(container, y) {
   const draggableElements = [...container.querySelectorAll('.ranking-item:not(.dragging)')];
-  
+
   return draggableElements.reduce((closest, child) => {
     const box = child.getBoundingClientRect();
     const offset = y - box.top - box.height / 2;
@@ -1044,12 +1275,13 @@ function getDragAfterElement(container, y) {
   }, { offset: Number.NEGATIVE_INFINITY }).element;
 }
 
-function updateRankingValues() {
-  const items = [...document.querySelectorAll('#sortable-activities .ranking-item')];
+function updateRankingValuesFor(list) {
+  const qid = list.getAttribute('data-qid');
+  const items = [...list.querySelectorAll('.ranking-item')];
   items.forEach((item, index) => {
     const badge = item.querySelector('.rank-badge');
     if (badge) badge.innerText = index + 1;
-    const input = document.getElementById(`input-Q27-r${index + 1}`);
+    const input = document.getElementById(`input-${qid}-r${index + 1}`);
     if (input) input.value = item.getAttribute('data-id');
   });
 }
@@ -1299,6 +1531,7 @@ function handleLogout() {
 
 // DASHBOARD RENDER LOGIC
 function renderDashboardOverview() {
+  const appData = getFilteredAppData();
   const total = appData.length;
   document.getElementById('stat-total-responses').innerText = total;
 
@@ -1331,6 +1564,7 @@ function renderDashboardOverview() {
 }
 
 function renderDashboardQuestionCards() {
+  const appData = getFilteredAppData();
   const container = document.getElementById("dashboard-questions-container");
   if (!container) return;
   
@@ -1530,6 +1764,7 @@ function renderDashboardQuestionCards() {
 }
 
 function createQuestionChart(q, canvasId) {
+  const appData = getFilteredAppData();
   if (typeof Chart === 'undefined') {
     console.warn("Chart.js is not loaded. Skipping chart rendering for " + canvasId);
     return;
@@ -1718,8 +1953,22 @@ function createQuestionChart(q, canvasId) {
 }
 
 function updatePart1Summaries() {
+  const appData = getFilteredAppData();
   const total = appData.length;
-  if (total === 0) return;
+  if (total === 0) {
+    // Clear summaries if total is 0
+    const elGender = document.getElementById('card-gender-summary');
+    if (elGender) elGender.innerText = "-";
+    const elAge = document.getElementById('card-age-summary');
+    if (elAge) elAge.innerText = "-";
+    const elRole = document.getElementById('card-role-summary');
+    if (elRole) elRole.innerText = "-";
+    const elAttendance = document.getElementById('card-attendance-summary');
+    if (elAttendance) elAttendance.innerText = "-";
+    const elPrim = document.getElementById('card-primary-channel-summary');
+    if (elPrim) elPrim.innerText = "-";
+    return;
+  }
 
   const genderCounts = { "ชาย": 0, "หญิง": 0, "เพศทางเลือก": 0 };
   let sumAge = 0;
@@ -1807,6 +2056,7 @@ function updatePart1Summaries() {
 
 // CHART DESIGN (Chart.js Configs)
 function renderOverviewChart() {
+  const appData = getFilteredAppData();
   if (typeof Chart === 'undefined') {
     console.warn("Chart.js is not loaded. Skipping overview chart rendering.");
     return;
@@ -1913,11 +2163,19 @@ function submitFormAnswers() {
   const payload = {};
   
   payload.Timestamp = new Date().toISOString();
+  payload.Survey_ID = currentSettings.id || "default";
   payload.Consent = form.querySelector('input[name="Consent"]:checked')?.value || "ยินยอม";
 
   currentSchema.forEach(q => {
     if (q.type === "categorical") {
       const val = form.querySelector(`input[name="${q.id}"]:checked`)?.value || "";
+      payload[q.id] = val;
+      if (q.hasOther) {
+        payload[q.id + "_Other"] = val === "อื่น ๆ" ? (form.querySelector(`input[name="${q.id}_Other"]`)?.value || "") : "";
+      }
+    }
+    else if (q.type === "dropdown") {
+      const val = form.querySelector(`select[name="${q.id}"]`)?.value || "";
       payload[q.id] = val;
       if (q.hasOther) {
         payload[q.id + "_Other"] = val === "อื่น ๆ" ? (form.querySelector(`input[name="${q.id}_Other"]`)?.value || "") : "";
@@ -1964,8 +2222,6 @@ function submitFormAnswers() {
     setTimeout(() => {
       if (overlay) overlay.classList.add('hidden');
       appData.push(payload);
-      localStorage.setItem('survey_completed', 'true');
-      setCookie('survey_completed', 'true', 365);
       
       document.getElementById('thankyou-pane').classList.remove('hidden');
       form.classList.add('hidden');
@@ -1983,8 +2239,6 @@ function submitFormAnswers() {
   })
   .then(() => {
     if (overlay) overlay.classList.add('hidden');
-    localStorage.setItem('survey_completed', 'true');
-    setCookie('survey_completed', 'true', 365);
     appData.push(payload);
     
     document.getElementById('thankyou-pane').classList.remove('hidden');
@@ -2002,7 +2256,7 @@ document.getElementById('btn-thankyou-close').addEventListener('click', () => {
   document.getElementById('evaluation-form').reset();
   document.getElementById('evaluation-form').classList.remove('hidden');
   document.getElementById('thankyou-pane').classList.add('hidden');
-  showView('dashboard');
+  showView('survey');
 });
 
 // ==========================================================
@@ -2023,8 +2277,6 @@ function setupAdminTabs() {
         targetPane.classList.add("active");
         if (targetId === "admin-tab-users") {
           loadAdmins();
-        } else if (targetId === "admin-tab-builder") {
-          renderBuilder();
         } else if (targetId === "admin-tab-settings") {
           initSettingsTab();
         }
@@ -2199,42 +2451,516 @@ function deleteAdmin(deleteEmail) {
 }
 
 // SETTINGS & QR GENERATOR
-function initSettingsTab() {
-  document.getElementById("input-set-title").value = currentSettings.surveyName || "";
-  document.getElementById("input-set-start").value = currentSettings.startTime || "";
-  document.getElementById("input-set-end").value = currentSettings.endTime || "";
-  document.getElementById("input-set-active").checked = currentSettings.isActive;
+function updateSettingsStatusDisplay() {
+  const activeChk = document.getElementById("input-set-active");
+  const startVal = document.getElementById("input-set-start") ? document.getElementById("input-set-start").value : "";
+  const endVal = document.getElementById("input-set-end") ? document.getElementById("input-set-end").value : "";
   
-  const currentUrl = window.location.origin + window.location.pathname;
+  const badge = document.getElementById("survey-status-badge");
+  const detail = document.getElementById("survey-status-detail-text");
+  if (!badge || !detail || !activeChk) return;
+  
+  const now = new Date();
+  let isClosed = !activeChk.checked;
+  let reason = "แอดมินปิดใช้งาน";
+  
+  if (activeChk.checked) {
+    if (startVal) {
+      const start = parseThaiDateTime(startVal);
+      if (start && !isNaN(start.getTime()) && now < start) {
+        isClosed = true;
+        reason = "ยังไม่ถึงเวลาเปิดรับคำตอบ (" + formatThaiDateTime(start) + ")";
+      }
+    }
+    if (endVal) {
+      const end = parseThaiDateTime(endVal);
+      if (end && !isNaN(end.getTime()) && now > end) {
+        isClosed = true;
+        reason = "ปิดรับคำตอบเนื่องจากสิ้นสุดเวลา (" + formatThaiDateTime(end) + ")";
+      }
+    }
+  }
+  
+  if (isClosed) {
+    badge.innerText = "ปิด";
+    badge.className = "badge-status closed";
+    detail.innerText = "สถานะจริง: ปิดรับคำตอบ (" + reason + ")";
+  } else {
+    badge.innerText = "เปิด";
+    badge.className = "badge-status open";
+    detail.innerText = "สถานะจริง: กำลังเปิดรับคำตอบ";
+  }
+}
+
+function saveSettings(isSilent) {
+  const surveyName = document.getElementById("input-set-title").value.trim();
+  const startTime = document.getElementById("input-set-start").value;
+  const endTime = document.getElementById("input-set-end").value;
+  const isActive = document.getElementById("input-set-active").checked;
+  const tokenInput = document.getElementById("input-set-token");
+  const tokenVal = tokenInput ? tokenInput.value.trim() : "";
+  const accessToken = tokenVal || ("tk_" + Math.random().toString(36).substring(2, 10) + Math.random().toString(36).substring(2, 10));
+  
+  if (tokenInput && !tokenInput.value) {
+    tokenInput.value = accessToken;
+  }
+  
+  if (!surveyName) {
+    alert("กรุณากรอกชื่อแบบสอบถาม");
+    return;
+  }
+  
+  // Compile and validate the questionnaire schema
+  const updatedSchema = collectBuilderSchema();
+  if (!updatedSchema) {
+    return; // validation failed, alert already shown
+  }
+  
+  let targetId = selectedSurveyId;
+  let isNew = false;
+  
+  if (!targetId) {
+    targetId = "s_" + new Date().getTime();
+    isNew = true;
+  }
+  
+  const token = sessionStorage.getItem("admin_token");
+  
+  if (isNew) {
+    surveys.push({
+      id: targetId,
+      surveyName: surveyName,
+      startTime: startTime,
+      endTime: endTime,
+      isActive: isActive,
+      schema: updatedSchema,
+      accessToken: accessToken
+    });
+  } else {
+    const s = surveys.find(item => item.id === targetId);
+    if (s) {
+      s.surveyName = surveyName;
+      s.startTime = startTime;
+      s.endTime = endTime;
+      s.isActive = isActive;
+      s.schema = updatedSchema;
+      s.accessToken = accessToken;
+    }
+  }
+  
+  if (!APPS_SCRIPT_URL) {
+    localStorage.setItem("surveys_list", JSON.stringify(surveys));
+    
+    const activeSurvey = surveys.find(s => s.id === targetId);
+    if (activeSurvey) {
+      currentSettings = {
+        id: activeSurvey.id,
+        surveyName: activeSurvey.surveyName,
+        startTime: activeSurvey.startTime,
+        endTime: activeSurvey.endTime,
+        isActive: activeSurvey.isActive,
+        accessToken: activeSurvey.accessToken
+      };
+      currentSchema = activeSurvey.schema || DEFAULT_SCHEMA;
+      rebuildQuestionsMeta();
+      applySettings();
+      renderSurveyForm();
+      checkSurveyStatus();
+      
+      const currentUrl = window.location.origin + window.location.pathname + "?token=" + accessToken;
+      const linkEl = document.getElementById("qr-url-link");
+      if (linkEl) {
+        linkEl.href = currentUrl;
+        linkEl.innerText = currentUrl;
+      }
+      const qrImg = document.getElementById("qr-code-img");
+      if (qrImg) {
+        qrImg.src = "https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=" + encodeURIComponent(currentUrl);
+      }
+    }
+    
+    selectedSurveyId = targetId;
+    renderSurveysTable();
+    updateDashboardSurveySelector();
+    
+    if (!isSilent) {
+      alert(isNew ? "สร้างแบบสอบถามใหม่สำเร็จ!" : "แก้ไขรายละเอียดแบบสอบถามเรียบร้อย!");
+    }
+    return;
+  }
+  
+  const overlay = document.getElementById("submitting-overlay");
+  if (overlay && !isSilent) overlay.classList.remove("hidden");
+  
+  fetch(APPS_SCRIPT_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      action: "save_surveys",
+      idToken: token,
+      surveys: surveys
+    })
+  })
+  .then(res => res.json())
+  .then(res => {
+    if (overlay) overlay.classList.add("hidden");
+    if (res.status === "success") {
+      const activeSurvey = surveys.find(s => s.id === targetId);
+      if (activeSurvey) {
+        currentSettings = {
+          id: activeSurvey.id,
+          surveyName: activeSurvey.surveyName,
+          startTime: activeSurvey.startTime,
+          endTime: activeSurvey.endTime,
+          isActive: activeSurvey.isActive,
+          accessToken: activeSurvey.accessToken
+        };
+        currentSchema = activeSurvey.schema || DEFAULT_SCHEMA;
+        rebuildQuestionsMeta();
+        applySettings();
+        renderSurveyForm();
+        checkSurveyStatus();
+        
+        const currentUrl = window.location.origin + window.location.pathname + "?token=" + accessToken;
+        const linkEl = document.getElementById("qr-url-link");
+        if (linkEl) {
+          linkEl.href = currentUrl;
+          linkEl.innerText = currentUrl;
+        }
+        const qrImg = document.getElementById("qr-code-img");
+        if (qrImg) {
+          qrImg.src = "https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=" + encodeURIComponent(currentUrl);
+        }
+      }
+      
+      selectedSurveyId = targetId;
+      renderSurveysTable();
+      updateDashboardSurveySelector();
+      
+      if (!isSilent) {
+        alert(isNew ? "บันทึกสร้างแบบสอบถามใหม่สำเร็จ!" : "บันทึกการแก้ไขลงชีตสำเร็จ!");
+      }
+    } else {
+      if (!isSilent) {
+        alert("ดำเนินการล้มเหลว: " + res.message);
+      }
+    }
+  })
+  .catch(err => {
+    if (overlay) overlay.classList.add("hidden");
+    console.error("Save survey settings error:", err);
+    if (!isSilent) {
+      alert("ไม่สามารถติดต่อคลาวด์เพื่อบันทึกข้อมูลแบบสอบถามได้");
+    }
+  });
+}
+
+function initSettingsTab() {
+  if (!selectedSurveyId && surveys.length > 0) {
+    const activeSurvey = surveys.find(s => s.isActive);
+    selectedSurveyId = activeSurvey ? activeSurvey.id : surveys[0].id;
+  }
+  
+  renderSurveysTable();
+  
+  if (selectedSurveyId) {
+    selectSurvey(selectedSurveyId);
+  } else {
+    clearSurveyForm();
+  }
+}
+// MULTI-SURVEY FRONTEND CONTROL LOGIC
+function renderSurveysTable() {
+  const tbody = document.getElementById("survey-list-tbody");
+  if (!tbody) return;
+  
+  if (surveys.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="4" style="padding: 20px; text-align: center; color: var(--text-muted);">ไม่มีรายการแบบสอบถาม คลิกปุ่ม [สร้างแบบสอบถาม] เพื่อเริ่มต้น</td></tr>';
+    return;
+  }
+  
+  tbody.innerHTML = "";
+  surveys.forEach(s => {
+    const tr = document.createElement("tr");
+    tr.setAttribute("data-id", s.id);
+    if (s.id === selectedSurveyId) {
+      tr.classList.add("selected");
+    }
+    
+    // Determine status text
+    const now = new Date();
+    let statusText = "เปิด";
+    let statusClass = "badge-status open";
+    if (!s.isActive) {
+      statusText = "ปิด";
+      statusClass = "badge-status closed";
+    } else {
+      if (s.startTime) {
+        const start = parseThaiDateTime(s.startTime);
+        if (start && now < start) {
+          statusText = "ยังไม่เปิด";
+          statusClass = "badge-status closed";
+        }
+      }
+      if (s.endTime) {
+        const end = parseThaiDateTime(s.endTime);
+        if (end && now > end) {
+          statusText = "หมดเวลา";
+          statusClass = "badge-status closed";
+        }
+      }
+    }
+    
+    const timeText = (s.startTime || s.endTime) ? 
+      `${convertToInputFormat(s.startTime) || "-"} ถึง ${convertToInputFormat(s.endTime) || "-"}` : 
+      "ไม่ได้กำหนดข้อจำกัดเวลา";
+
+    tr.innerHTML = `
+      <td style="text-align: center; padding: 10px;" onclick="event.stopPropagation();">
+        <input type="checkbox" class="survey-row-checkbox" value="${s.id}" ${s.id === selectedSurveyId ? "checked" : ""} style="cursor: pointer; transform: scale(1.1);">
+      </td>
+      <td style="padding: 10px; font-weight: 500; color: var(--text-primary);">${s.surveyName}</td>
+      <td style="padding: 10px; color: var(--text-muted);">${timeText}</td>
+      <td style="padding: 10px; text-align: center;">
+        <span class="${statusClass}">${statusText}</span>
+      </td>
+    `;
+    
+    tr.addEventListener("click", () => {
+      selectSurvey(s.id);
+    });
+    
+    tbody.appendChild(tr);
+  });
+  
+  const rowCheckboxes = document.querySelectorAll(".survey-row-checkbox");
+  rowCheckboxes.forEach(cb => {
+    cb.addEventListener("change", (e) => {
+      if (e.target.checked) {
+        selectSurvey(e.target.value);
+      } else {
+        if (selectedSurveyId === e.target.value) {
+          selectedSurveyId = "";
+          clearSurveyForm();
+        }
+        renderSurveysTable();
+      }
+    });
+  });
+}
+
+function selectSurvey(id) {
+  selectedSurveyId = id;
+  const s = surveys.find(item => item.id === id);
+  if (!s) return;
+  
+  renderSurveysTable();
+  
+  document.getElementById("survey-editor-title").innerText = `แก้ไขแบบสอบถาม: ${s.surveyName}`;
+  document.getElementById("btn-save-settings-text").innerText = "ตกลง";
+  
+  document.getElementById("input-set-title").value = s.surveyName || "";
+  
+  // Set access token input
+  let token = s.accessToken;
+  if (!token) {
+    token = "tk_" + Math.random().toString(36).substring(2, 10) + Math.random().toString(36).substring(2, 10);
+    s.accessToken = token;
+  }
+  const tokenInput = document.getElementById("input-set-token");
+  if (tokenInput) tokenInput.value = token;
+  
+  const startInput = document.getElementById("input-set-start");
+  const endInput = document.getElementById("input-set-end");
+  const startVal = convertToInputFormat(s.startTime);
+  const endVal = convertToInputFormat(s.endTime);
+  
+  const fpConfig = {
+    enableTime: true,
+    time_24hr: true,
+    dateFormat: "d/m/Y H:i",
+    allowInput: true,
+    formatDate: (date) => {
+      const day = String(date.getDate()).padStart(2, '0');
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const year = date.getFullYear() + 543;
+      const hours = String(date.getHours()).padStart(2, '0');
+      const minutes = String(date.getMinutes()).padStart(2, '0');
+      return `${day}/${month}/${year} ${hours}:${minutes}`;
+    },
+    parseDate: (datestr) => {
+      return parseThaiDateTime(datestr);
+    },
+    onChange: () => {
+      updateSettingsStatusDisplay();
+    }
+  };
+
+  if (typeof flatpickr !== "undefined") {
+    if (startInput) {
+      if (startInput._flatpickr) {
+        startInput._flatpickr.setDate(parseThaiDateTime(startVal) || "");
+      } else {
+        flatpickr(startInput, fpConfig);
+        if (startVal) startInput._flatpickr.setDate(parseThaiDateTime(startVal) || "");
+      }
+    }
+    if (endInput) {
+      if (endInput._flatpickr) {
+        endInput._flatpickr.setDate(parseThaiDateTime(endVal) || "");
+      } else {
+        flatpickr(endInput, fpConfig);
+        if (endVal) endInput._flatpickr.setDate(parseThaiDateTime(endVal) || "");
+      }
+    }
+  }
+  
+  const activeChk = document.getElementById("input-set-active");
+  if (activeChk) {
+    activeChk.checked = s.isActive;
+    const newActiveChk = activeChk.cloneNode(true);
+    activeChk.parentNode.replaceChild(newActiveChk, activeChk);
+    newActiveChk.addEventListener("change", () => {
+      updateSettingsStatusDisplay();
+      saveSettings(true);
+    });
+  }
+  
+  updateSettingsStatusDisplay();
+  
+  currentSchema = s.schema || DEFAULT_SCHEMA;
+  currentSettings = {
+    id: s.id,
+    surveyName: s.surveyName,
+    startTime: s.startTime,
+    endTime: s.endTime,
+    isActive: s.isActive,
+    accessToken: token
+  };
+  rebuildQuestionsMeta();
+  renderBuilder();
+  
+  const currentUrl = window.location.origin + window.location.pathname + "?token=" + token;
   const linkEl = document.getElementById("qr-url-link");
   if (linkEl) {
     linkEl.href = currentUrl;
     linkEl.innerText = currentUrl;
   }
-  
   const qrImg = document.getElementById("qr-code-img");
   if (qrImg) {
     qrImg.src = "https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=" + encodeURIComponent(currentUrl);
   }
 }
 
-function handleSettingsSubmit(e) {
-  e.preventDefault();
+function prepareCreateSurvey() {
+  selectedSurveyId = "";
+  renderSurveysTable();
   
-  const surveyName = document.getElementById("input-set-title").value.trim();
-  const startTime = document.getElementById("input-set-start").value;
-  const endTime = document.getElementById("input-set-end").value;
-  const isActive = document.getElementById("input-set-active").checked;
+  document.getElementById("survey-editor-title").innerText = "สร้างแบบสอบถามใหม่";
+  document.getElementById("btn-save-settings-text").innerText = "ตกลง";
   
-  const settingsData = { surveyName, startTime, endTime, isActive };
+  document.getElementById("input-set-title").value = "";
+  
+  const tokenInput = document.getElementById("input-set-token");
+  if (tokenInput) {
+    tokenInput.value = "tk_" + Math.random().toString(36).substring(2, 10) + Math.random().toString(36).substring(2, 10);
+  }
+  
+  const startInput = document.getElementById("input-set-start");
+  const endInput = document.getElementById("input-set-end");
+  if (startInput) {
+    startInput.value = "";
+    if (startInput._flatpickr) startInput._flatpickr.clear();
+  }
+  if (endInput) {
+    endInput.value = "";
+    if (endInput._flatpickr) endInput._flatpickr.clear();
+  }
+  
+  const activeChk = document.getElementById("input-set-active");
+  if (activeChk) {
+    activeChk.checked = true;
+  }
+  
+  // เริ่มจากแบบสอบถามว่างเปล่า: ผู้ดูแลระบบกรอกคำถามทีละข้อและเลือกรูปแบบการตอบเอง
+  currentSchema = [];
+  rebuildQuestionsMeta();
+  renderBuilder();
+
+  updateSettingsStatusDisplay();
+}
+
+function clearSurveyForm() {
+  document.getElementById("survey-editor-title").innerText = "รายละเอียดและการแก้ไขแบบสอบถาม (ไม่มีข้อมูลที่เลือก)";
+  document.getElementById("btn-save-settings-text").innerText = "ตกลง";
+  document.getElementById("input-set-title").value = "";
+  
+  const list1 = document.getElementById("builder-part1-list");
+  const list2 = document.getElementById("builder-part2-list");
+  const list3 = document.getElementById("builder-part3-list");
+  if (list1) list1.innerHTML = "";
+  if (list2) list2.innerHTML = "";
+  if (list3) list3.innerHTML = "";
+  const tokenInput = document.getElementById("input-set-token");
+  if (tokenInput) tokenInput.value = "";
+  const startInput = document.getElementById("input-set-start");
+  const endInput = document.getElementById("input-set-end");
+  if (startInput) {
+    startInput.value = "";
+    if (startInput._flatpickr) startInput._flatpickr.clear();
+  }
+  if (endInput) {
+    endInput.value = "";
+    if (endInput._flatpickr) endInput._flatpickr.clear();
+  }
+}
+
+function prepareEditSurvey() {
+  const checkedBoxes = document.querySelectorAll(".survey-row-checkbox:checked");
+  if (checkedBoxes.length === 0) {
+    alert("กรุณาเลือก (ติ๊กถูก) แบบสอบถามที่ต้องการแก้ไขก่อนครับ");
+    return;
+  }
+  selectSurvey(checkedBoxes[0].value);
+}
+
+function deleteSelectedSurveys() {
+  const checkedBoxes = document.querySelectorAll(".survey-row-checkbox:checked");
+  if (checkedBoxes.length === 0) {
+    alert("กรุณาเลือก (ติ๊กถูก) แบบสอบถามที่ต้องการลบก่อนครับ");
+    return;
+  }
+  
+  const idsToDelete = Array.from(checkedBoxes).map(cb => cb.value);
+  const titlesToDelete = surveys.filter(s => idsToDelete.includes(s.id)).map(s => s.surveyName);
+  
+  if (!confirm(`คุณแน่ใจหรือไม่ว่าต้องการลบแบบสอบถามต่อไปนี้?\n\n- ${titlesToDelete.join("\n- ")}`)) {
+    return;
+  }
+  
+  surveys = surveys.filter(s => !idsToDelete.includes(s.id));
+  saveSurveysListToBackend();
+}
+
+function saveSurveysListToBackend() {
   const token = sessionStorage.getItem("admin_token");
   
   if (!APPS_SCRIPT_URL) {
-    currentSettings = settingsData;
-    localStorage.setItem("survey_settings", JSON.stringify(settingsData));
-    applySettings();
-    checkSurveyStatus();
-    alert("บันทึกการตั้งค่าระบบเรียบร้อย (โหมดบันทึกจำลองแบบท้องถิ่น)");
+    localStorage.setItem("surveys_list", JSON.stringify(surveys));
+    
+    if (!surveys.find(s => s.id === selectedSurveyId)) {
+      selectedSurveyId = surveys.length > 0 ? surveys[0].id : "";
+    }
+    
+    if (selectedSurveyId) {
+      selectSurvey(selectedSurveyId);
+    } else {
+      clearSurveyForm();
+    }
+    
+    renderSurveysTable();
+    updateDashboardSurveySelector();
+    alert("ลบแบบสอบถามสำเร็จ (โหมดจำลองแบบท้องถิ่น)");
     return;
   }
   
@@ -2245,28 +2971,50 @@ function handleSettingsSubmit(e) {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      action: "save_settings",
+      action: "save_surveys",
       idToken: token,
-      settingsData: settingsData
+      surveys: surveys
     })
   })
   .then(res => res.json())
   .then(res => {
     if (overlay) overlay.classList.add("hidden");
     if (res.status === "success") {
-      currentSettings = settingsData;
-      applySettings();
-      checkSurveyStatus();
-      alert("บันทึกข้อมูลและปรับปรุงการตั้งค่าในชีตสำเร็จ!");
+      if (!surveys.find(s => s.id === selectedSurveyId)) {
+        selectedSurveyId = surveys.length > 0 ? surveys[0].id : "";
+      }
+      
+      if (selectedSurveyId) {
+        selectSurvey(selectedSurveyId);
+      } else {
+        clearSurveyForm();
+      }
+      
+      renderSurveysTable();
+      updateDashboardSurveySelector();
+      alert("ปรับปรุงรายการแบบสอบถามและบันทึกสถิติสำเร็จ!");
     } else {
-      alert("บันทึกการตั้งค่าล้มเหลว: " + res.message);
+      alert("ดำเนินการล้มเหลว: " + res.message);
     }
   })
   .catch(err => {
     if (overlay) overlay.classList.add("hidden");
-    console.error("Save settings error:", err);
-    alert("ไม่สามารถติดต่อคลาวด์เพื่อบันทึกวันเวลาเปิดปิดได้");
+    console.error("Save surveys error:", err);
+    alert("ไม่สามารถเชื่อมต่อคลาวด์เพื่อเซฟรายการแบบสอบถามได้");
   });
+}
+
+function toggleSelectAllSurveys(e) {
+  const checked = e.target.checked;
+  const rowCheckboxes = document.querySelectorAll(".survey-row-checkbox");
+  rowCheckboxes.forEach(cb => {
+    cb.checked = checked;
+  });
+}
+
+function handleSettingsSubmit(e) {
+  if (e) e.preventDefault();
+  saveSettings(false);
 }
 
 function downloadQRCode() {
@@ -2300,54 +3048,93 @@ function downloadQRCode() {
 }
 
 // FORM BUILDER (Questionnaire Editor)
+
+// รูปแบบการตอบทั้งหมดที่เลือกได้เมื่อเพิ่มคำถามใหม่
+const ANSWER_FORMATS = [
+  { value: "categorical",  label: "เลือกตอบข้อเดียว (Radio)" },
+  { value: "multi-select", label: "เลือกหลายข้อ (Checkbox)" },
+  { value: "dropdown",     label: "เลือกจากดรอปดาวน์ (Dropdown)" },
+  { value: "text",         label: "ข้อความ / ปลายเปิด (Text)" },
+  { value: "numeric",      label: "ตัวเลข (Number)" },
+  { value: "likert",       label: "สเกลความเห็น 1-5 (Likert)" },
+  { value: "score10",      label: "สเกลคะแนน 1-10 (Slider)" },
+  { value: "ranking",      label: "จัดเรียงลำดับ (Ranking)" },
+  { value: "facilities",   label: "ให้คะแนนรายหัวข้อย่อย 1-5 (Sub-rating)" }
+];
+
+// คำถามหลักของเทมเพลต "เวทีสานพลัง" ที่ล็อกประเภทไว้ (แก้ได้เฉพาะข้อความ/ตัวเลือก)
+const CORE_P1_IDS = ["Gender", "Age", "Network_Number", "Respondent_Type", "Attendance_Count", "Attendance_Years", "Info_Channels", "Primary_Channel"];
+const CORE_P3_IDS = ["Q27", "Q28", "Q29", "Q30", "Q31", "Q32", "Q33", "Q34", "Q35", "Q36", "Q37", "Q38", "Q39"];
+
+function isCoreQuestion(id) {
+  return CORE_P1_IDS.includes(id) || CORE_P3_IDS.includes(id);
+}
+
 function renderBuilder() {
   const list1 = document.getElementById("builder-part1-list");
   const list2 = document.getElementById("builder-part2-list");
   const list3 = document.getElementById("builder-part3-list");
-  
+
   if (!list1 || !list2 || !list3) return;
-  
+
   list1.innerHTML = "";
   list2.innerHTML = "";
   list3.innerHTML = "";
-  
+
   currentSchema.forEach(q => {
     const card = document.createElement("div");
-    card.className = "builder-question-card";
+    card.className = "builder-question-card builder-q-item";
     card.setAttribute("data-qid", q.id);
-    
+
+    const isCore = isCoreQuestion(q.id);
+
     let headerHtml = `
       <div class="builder-card-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; border-bottom:1px dashed var(--border-color); padding-bottom:8px;">
-        <span class="builder-qid-badge" style="font-weight:700; background-color:var(--bg-accent); padding:2px 8px; border-radius:4px; font-family:var(--font-code); font-size:0.8rem; color:var(--text-secondary);">${q.id}</span>
+        <span class="builder-qid-badge" style="font-weight:700; background-color:var(--bg-accent); padding:2px 8px; border-radius:4px; font-family:var(--font-code); font-size:0.8rem; color:var(--text-secondary);">${escapeHtml(q.id)}</span>
     `;
-    
-    const isCoreP1 = ["Gender", "Age", "Network_Number", "Respondent_Type", "Attendance_Count", "Attendance_Years", "Info_Channels", "Primary_Channel"].includes(q.id);
-    const isCoreP3 = ["Q27", "Q28", "Q29", "Q30", "Q31", "Q32", "Q33", "Q34", "Q35", "Q36", "Q37", "Q38", "Q39"].includes(q.id);
-    
-    if (!isCoreP1 && !isCoreP3) {
+
+    if (!isCore) {
       headerHtml += `
-        <button type="button" class="btn-delete-question" data-qid="${q.id}" style="background:none; border:none; color:var(--danger); cursor:pointer; font-size:1.0rem;" title="ลบคำถาม">🗑️ ลบข้อนี้</button>
+        <button type="button" class="btn-delete-question" data-qid="${escapeHtml(q.id)}" style="background:none; border:none; color:var(--danger); cursor:pointer; font-size:1.0rem;" title="ลบคำถาม">🗑️ ลบข้อนี้</button>
       `;
     }
     headerHtml += `</div>`;
-    
+
     let bodyHtml = `
       <div class="form-group">
         <label class="form-label" style="font-weight:600;">หัวข้อข้อความคำถาม</label>
         <input type="text" class="form-control builder-input-text" data-prop="text" value="${escapeHtml(q.text)}">
       </div>
     `;
-    
-    if (q.type === "categorical" || q.type === "multi-select" || q.id === "Q27" || q.id === "Q37") {
+
+    // ตัวเลือก "รูปแบบการตอบ" สำหรับคำถามที่ผู้ดูแลระบบเพิ่มเอง (ไม่ใช่คำถามหลักของเทมเพลต)
+    if (!isCore) {
+      let opts = "";
+      ANSWER_FORMATS.forEach(f => {
+        opts += `<option value="${f.value}" ${q.type === f.value ? "selected" : ""}>${f.label}</option>`;
+      });
+      bodyHtml += `
+        <div class="form-group mt-2">
+          <label class="form-label" style="font-weight:600;">รูปแบบการตอบ (Answer format)</label>
+          <select class="form-control builder-input-type" data-prop="type" style="width:100%;">${opts}</select>
+        </div>
+      `;
+    }
+
+    // ช่องกรอกตัวเลือกคำตอบ (radio / checkbox / dropdown / ranking)
+    const needsChoices = ["categorical", "multi-select", "dropdown", "ranking"].includes(q.type) || q.id === "Q27" || q.id === "Q37";
+    if (needsChoices) {
       const choicesStr = q.choices ? q.choices.join(", ") : "";
       bodyHtml += `
         <div class="form-group mt-2">
           <label class="form-label" style="font-weight:600;">ตัวเลือกคำตอบ (คั่นด้วยเครื่องหมายจุลภาค ,)</label>
           <input type="text" class="form-control builder-input-choices" data-prop="choices" value="${escapeHtml(choicesStr)}">
+          <span style="font-size:0.72rem; color:var(--text-muted);">เพิ่มคำว่า "อื่น ๆ" เป็นตัวเลือก เพื่อเปิดช่องให้ผู้ตอบระบุเอง</span>
         </div>
       `;
     }
-    
+
+    // ช่องเลือกด้านการประเมิน (เฉพาะ Likert ในส่วนที่ 2)
     if (q.type === "likert" && q.step === 2) {
       bodyHtml += `
         <div class="form-group mt-2">
@@ -2361,11 +3148,41 @@ function renderBuilder() {
         </div>
       `;
     }
-    
+
+    // ช่องกำหนดค่าต่ำสุด/สูงสุด สำหรับคำถามตัวเลข
+    if (q.type === "numeric" && !isCore) {
+      bodyHtml += `
+        <div class="form-group mt-2" style="display:flex; gap:12px;">
+          <div style="flex:1;">
+            <label class="form-label" style="font-weight:600;">ค่าต่ำสุด (min)</label>
+            <input type="number" class="form-control builder-input-min" value="${q.min !== undefined ? q.min : ''}">
+          </div>
+          <div style="flex:1;">
+            <label class="form-label" style="font-weight:600;">ค่าสูงสุด (max)</label>
+            <input type="number" class="form-control builder-input-max" value="${q.max !== undefined ? q.max : ''}">
+          </div>
+        </div>
+      `;
+    }
+
+    // ตัวเลือกช่องพิมพ์แบบยาว (ปลายเปิด) สำหรับคำถามข้อความ
+    if (q.type === "text" && !isCore) {
+      bodyHtml += `
+        <div class="form-group mt-2">
+          <label style="display:flex; align-items:center; gap:8px; font-size:0.85rem; cursor:pointer;">
+            <input type="checkbox" class="builder-input-multiline" ${q.multiline ? "checked" : ""}>
+            ช่องพิมพ์แบบยาว (ปลายเปิด)
+          </label>
+        </div>
+      `;
+    }
+
+    // ช่องแก้ไขหัวข้อย่อยสำหรับการให้คะแนนรายหัวข้อ (facilities)
     if (q.type === "facilities") {
-      bodyHtml += `<div class="form-group mt-2"><label class="form-label" style="font-weight:600;">หัวข้อย่อยการจัดสิ่งอำนวยความสะดวก</label>`;
-      q.subfields.forEach((sub, idx) => {
-        const sublabel = q.sublabels ? q.sublabels[idx] : sub;
+      const subs = q.subfields || [];
+      bodyHtml += `<div class="form-group mt-2"><label class="form-label" style="font-weight:600;">หัวข้อย่อยที่ให้คะแนน (1-5)</label>`;
+      subs.forEach((sub, idx) => {
+        const sublabel = (q.sublabels && q.sublabels[idx] !== undefined) ? q.sublabels[idx] : sub;
         bodyHtml += `
           <div style="display:flex; gap:8px; align-items:center; margin-bottom:6px;">
             <span style="font-size:0.8rem; font-weight:600; width:60px;">หัวข้อ ${idx+1}:</span>
@@ -2373,25 +3190,14 @@ function renderBuilder() {
           </div>
         `;
       });
+      if (!isCore) {
+        bodyHtml += `<button type="button" class="btn-add-subitem" data-qid="${escapeHtml(q.id)}" style="background:none; border:1px dashed var(--border-color); color:var(--text-secondary); cursor:pointer; font-size:0.75rem; padding:4px 10px; border-radius:6px; margin-top:4px;">+ เพิ่มหัวข้อย่อย</button>`;
+      }
       bodyHtml += `</div>`;
     }
-    
-    if (!isCoreP1 && q.step === 1) {
-      bodyHtml += `
-        <div class="form-group mt-2">
-          <label class="form-label" style="font-weight:600;">ประเภทฟิลด์รับคำตอบ</label>
-          <select class="form-control builder-input-type" data-prop="type" style="width:100%;">
-            <option value="text" ${q.type === "text" ? "selected" : ""}>กล่องพิมพ์คำตอบ (Text)</option>
-            <option value="numeric" ${q.type === "numeric" ? "selected" : ""}>กล่องกรอกเลข (Numeric)</option>
-            <option value="categorical" ${q.type === "categorical" ? "selected" : ""}>เลือกตอบหนึ่งข้อ (Radio Button)</option>
-            <option value="multi-select" ${q.type === "multi-select" ? "selected" : ""}>เลือกตอบหลายข้อ (Checkbox)</option>
-          </select>
-        </div>
-      `;
-    }
-    
+
     card.innerHTML = headerHtml + bodyHtml;
-    
+
     if (q.step === 1) {
       list1.appendChild(card);
     } else if (q.step === 2) {
@@ -2401,37 +3207,79 @@ function renderBuilder() {
     }
   });
 
-  // Add Custom demography question button at end of Part 1 list
-  const addBtn1 = document.createElement("button");
-  addBtn1.type = "button";
-  addBtn1.className = "btn-add-question";
-  addBtn1.style.marginTop = "12px";
-  addBtn1.style.justifyContent = "center";
-  addBtn1.style.width = "100%";
-  addBtn1.innerText = "+ เพิ่มคำถามข้อมูลทั่วไปใหม่";
-  addBtn1.addEventListener("click", () => {
-    const nextId = "P1_Custom_" + Date.now().toString().slice(-4);
-    currentSchema.push({
-      id: nextId,
-      type: "text",
-      text: "คำถามทั่วไปข้อใหม่",
-      step: 1,
-      required: true
-    });
-    renderBuilder();
+  // ปุ่ม "เพิ่มคำถาม" ท้ายรายการของแต่ละส่วน
+  list1.appendChild(makeAddQuestionButton(1, "+ เพิ่มคำถามในส่วนที่ 1"));
+  list2.appendChild(makeAddQuestionButton(2, "+ เพิ่มคำถามในส่วนที่ 2"));
+  list3.appendChild(makeAddQuestionButton(3, "+ เพิ่มคำถามในส่วนที่ 3"));
+
+  // เปลี่ยนรูปแบบการตอบ -> เก็บค่าที่กรอกไว้ก่อนแล้ว render ใหม่เพื่อแสดงช่องตั้งค่าให้ตรงประเภท
+  document.querySelectorAll(".builder-input-type").forEach(sel => {
+    sel.addEventListener("change", () => syncAndRerender());
   });
-  list1.appendChild(addBtn1);
-  
+
+  // เพิ่มหัวข้อย่อยให้คำถามแบบ facilities
+  document.querySelectorAll(".btn-add-subitem").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const qid = btn.getAttribute("data-qid");
+      syncAndRerender(() => {
+        const q = currentSchema.find(x => x.id === qid);
+        if (q) {
+          if (!q.subfields) q.subfields = [];
+          if (!q.sublabels) q.sublabels = [];
+          const n = q.subfields.length + 1;
+          q.subfields.push(`${qid}_Sub${n}`);
+          q.sublabels.push(`หัวข้อย่อย ${n}`);
+        }
+      });
+    });
+  });
+
   // Bind Delete buttons
   document.querySelectorAll(".btn-delete-question").forEach(btn => {
     btn.addEventListener("click", () => {
       const qid = btn.getAttribute("data-qid");
       if (confirm(`คุณต้องการลบข้อคำถามรหัส ${qid} ออกใช่หรือไม่?`)) {
-        currentSchema = currentSchema.filter(q => q.id !== qid);
-        renderBuilder();
+        syncAndRerender(() => {
+          currentSchema = currentSchema.filter(q => q.id !== qid);
+        });
       }
     });
   });
+}
+
+function makeAddQuestionButton(step, label) {
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "btn-add-question";
+  btn.style.marginTop = "12px";
+  btn.style.justifyContent = "center";
+  btn.style.width = "100%";
+  btn.innerText = label;
+  btn.addEventListener("click", () => addBuilderQuestion(step));
+  return btn;
+}
+
+// เพิ่มคำถามใหม่หนึ่งข้อในส่วนที่กำหนด พร้อมค่าตั้งต้นตามรูปแบบการตอบ
+function addBuilderQuestion(step) {
+  const id = generateQuestionId("Q");
+  let q;
+  if (step === 1) {
+    q = { id, type: "categorical", text: "คำถามใหม่", choices: ["ตัวเลือก 1", "ตัวเลือก 2"], step: 1, required: true };
+  } else if (step === 2) {
+    q = { id, type: "likert", text: "คำถามใหม่", section: "Context", step: 2, required: true };
+  } else {
+    q = { id, type: "text", text: "คำถามใหม่", step: 3, required: true };
+  }
+  syncAndRerender(() => { currentSchema.push(q); });
+}
+
+// อ่านค่าที่กรอกในตัวสร้างแบบสอบถามกลับเข้า currentSchema แล้ว render ใหม่ (กันข้อมูลที่ยังไม่บันทึกหาย)
+function syncAndRerender(mutator) {
+  const collected = collectBuilderSchema(true);
+  if (collected) currentSchema = collected;
+  if (typeof mutator === "function") mutator();
+  rebuildQuestionsMeta();
+  renderBuilder();
 }
 
 function handleBuilderReset() {
@@ -2443,138 +3291,107 @@ function handleBuilderReset() {
   }
 }
 
-function saveBuilderSchema() {
+// อ่านโครงสร้างคำถามจากหน้าจอตัวสร้างแบบสอบถาม
+// silent = true : ใช้ตอน render ใหม่ภายใน (ไม่ alert และไม่บังคับว่าต้องกรอกข้อความ)
+// silent = false: ใช้ตอนกดบันทึก (ตรวจสอบว่าต้องกรอกข้อความครบ)
+function collectBuilderSchema(silent) {
   const updatedSchema = [];
-  
-  // Read Part 1
-  const cards1 = document.querySelectorAll("#builder-part1-list .builder-question-card");
-  cards1.forEach(card => {
-    const id = card.getAttribute("data-qid");
-    const text = card.querySelector('.builder-input-text').value.trim();
-    const isCore = ["Gender", "Age", "Network_Number", "Respondent_Type", "Attendance_Count", "Attendance_Years", "Info_Channels", "Primary_Channel"].includes(id);
-    
-    const q = { id, text, step: 1, required: true };
-    
-    if (isCore) {
-      const orig = currentSchema.find(x => x.id === id);
-      q.type = orig.type;
-      if (orig.choices) q.choices = orig.choices;
-      if (orig.hasOther) q.hasOther = orig.hasOther;
-      if (orig.min !== undefined) q.min = orig.min;
-      if (orig.max !== undefined) q.max = orig.max;
-      if (orig.pattern !== undefined) q.pattern = orig.pattern;
-    } else {
-      q.type = card.querySelector('.builder-input-type').value;
-      if (q.type === "categorical" || q.type === "multi-select") {
-        const choicesVal = card.querySelector('.builder-input-choices').value;
-        q.choices = choicesVal.split(",").map(c => c.trim()).filter(c => c !== "");
-        q.hasOther = q.choices.includes("อื่น ๆ");
+  const lists = [
+    { sel: "#builder-part1-list", step: 1 },
+    { sel: "#builder-part2-list", step: 2 },
+    { sel: "#builder-part3-list", step: 3 }
+  ];
+
+  for (let li = 0; li < lists.length; li++) {
+    const step = lists[li].step;
+    const cards = document.querySelectorAll(`${lists[li].sel} .builder-question-card`);
+
+    for (let i = 0; i < cards.length; i++) {
+      const card = cards[i];
+      const id = card.getAttribute("data-qid");
+      const textInput = card.querySelector('.builder-input-text');
+      const text = textInput ? textInput.value.trim() : "";
+
+      if (!text && !silent) {
+        alert(`กรุณากรอกหัวข้อข้อความคำถามให้ครบถ้วนใน ส่วนที่ ${step}`);
+        return null;
       }
+
+      const isCore = isCoreQuestion(id);
+      const orig = currentSchema.find(x => x.id === id);
+      const q = { id, text, step, required: orig ? (orig.required !== false) : true };
+
+      if (isCore) {
+        // คำถามหลักของเทมเพลต: คงประเภทและคุณสมบัติเดิม แก้ได้เฉพาะข้อความ/ตัวเลือก/หัวข้อย่อย/ด้านการประเมิน
+        if (orig) {
+          q.type = orig.type;
+          if (orig.choices) q.choices = orig.choices.slice();
+          if (orig.hasOther) q.hasOther = orig.hasOther;
+          if (orig.min !== undefined) q.min = orig.min;
+          if (orig.max !== undefined) q.max = orig.max;
+          if (orig.pattern !== undefined) q.pattern = orig.pattern;
+          if (orig.section) q.section = orig.section;
+          if (orig.subfields) q.subfields = orig.subfields.slice();
+          if (orig.sublabels) q.sublabels = orig.sublabels.slice();
+          if (orig.image) q.image = orig.image;
+        } else {
+          q.type = "text";
+        }
+      } else {
+        // คำถามที่เพิ่มเอง: อ่านประเภทจากตัวเลือกรูปแบบการตอบ
+        const typeSel = card.querySelector('.builder-input-type');
+        q.type = typeSel ? typeSel.value : (orig ? orig.type : "text");
+      }
+
+      // ----- อ่านค่าตั้งค่าตามประเภท (ใช้ร่วมกันทั้งคำถามหลักและคำถามที่เพิ่มเอง) -----
+      const choicesInput = card.querySelector('.builder-input-choices');
+      if (choicesInput && ["categorical", "multi-select", "dropdown", "ranking"].includes(q.type)) {
+        q.choices = choicesInput.value.split(",").map(c => c.trim()).filter(c => c !== "");
+        if (["categorical", "multi-select", "dropdown"].includes(q.type) || id === "Q37") {
+          q.hasOther = q.choices.includes("อื่น ๆ");
+        }
+      }
+
+      const sectionSel = card.querySelector('.builder-input-section');
+      if (sectionSel && q.type === "likert" && step === 2) {
+        q.section = sectionSel.value;
+      }
+
+      if (q.type === "numeric" && !isCore) {
+        const minInput = card.querySelector('.builder-input-min');
+        const maxInput = card.querySelector('.builder-input-max');
+        if (minInput && minInput.value !== "") q.min = Number(minInput.value);
+        if (maxInput && maxInput.value !== "") q.max = Number(maxInput.value);
+      }
+
+      if (q.type === "text" && !isCore) {
+        const ml = card.querySelector('.builder-input-multiline');
+        q.multiline = !!(ml && ml.checked);
+      }
+
+      if (q.type === "facilities") {
+        const subInputs = card.querySelectorAll('.builder-input-sublabel');
+        if (subInputs.length) {
+          q.subfields = [];
+          q.sublabels = [];
+          subInputs.forEach((inp, idx) => {
+            q.subfields.push(`${id}_Sub${idx + 1}`);
+            q.sublabels.push(inp.value.trim() || `หัวข้อย่อย ${idx + 1}`);
+          });
+        } else if (orig && orig.subfields) {
+          q.subfields = orig.subfields.slice();
+          q.sublabels = (orig.sublabels || orig.subfields).slice();
+        } else {
+          q.subfields = [`${id}_Sub1`, `${id}_Sub2`];
+          q.sublabels = ["หัวข้อย่อย 1", "หัวข้อย่อย 2"];
+        }
+      }
+
+      updatedSchema.push(q);
     }
-    updatedSchema.push(q);
-  });
-  
-  // Read Part 2
-  const cards2 = document.querySelectorAll("#builder-part2-list .builder-question-card");
-  cards2.forEach(card => {
-    const id = card.getAttribute("data-qid");
-    const text = card.querySelector('.builder-input-text').value.trim();
-    const section = card.querySelector('.builder-input-section').value;
-    
-    updatedSchema.push({
-      id,
-      type: "likert",
-      text,
-      section,
-      step: 2,
-      required: true
-    });
-  });
-  
-  // Read Part 3
-  const cards3 = document.querySelectorAll("#builder-part3-list .builder-question-card");
-  cards3.forEach(card => {
-    const id = card.getAttribute("data-qid");
-    const text = card.querySelector('.builder-input-text').value.trim();
-    const orig = currentSchema.find(x => x.id === id);
-    
-    const q = {
-      id,
-      type: orig.type,
-      text,
-      step: 3,
-      required: orig.required
-    };
-    
-    if (id === "Q27" || id === "Q37") {
-      const choicesVal = card.querySelector('.builder-input-choices').value;
-      q.choices = choicesVal.split(",").map(c => c.trim()).filter(c => c !== "");
-      if (id === "Q37") q.hasOther = q.choices.includes("อื่น ๆ");
-    }
-    else if (orig.type === "facilities") {
-      q.subfields = orig.subfields;
-      q.sublabels = [];
-      const subInputs = card.querySelectorAll('.builder-input-sublabel');
-      subInputs.forEach(input => {
-        q.sublabels.push(input.value.trim());
-      });
-    }
-    
-    updatedSchema.push(q);
-  });
-  
-  let hasEmptyText = false;
-  updatedSchema.forEach(q => {
-    if (q.text === "") hasEmptyText = true;
-  });
-  
-  if (hasEmptyText) {
-    alert("กรุณากรอกข้อความคำถามให้ครบถ้วนก่อนบันทึกระบบ");
-    return;
   }
-  
-  const token = sessionStorage.getItem("admin_token");
-  
-  if (!APPS_SCRIPT_URL) {
-    currentSchema = updatedSchema;
-    rebuildQuestionsMeta();
-    localStorage.setItem("survey_schema", JSON.stringify(updatedSchema));
-    renderSurveyForm();
-    renderDashboardQuestionCards();
-    alert("บันทึกและซิงค์โครงสร้างฟอร์มจำลองสำเร็จแล้ว!");
-    return;
-  }
-  
-  const overlay = document.getElementById("submitting-overlay");
-  if (overlay) overlay.classList.remove("hidden");
-  
-  fetch(APPS_SCRIPT_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      action: "save_schema",
-      idToken: token,
-      schemaData: updatedSchema
-    })
-  })
-  .then(res => res.json())
-  .then(res => {
-    if (overlay) overlay.classList.add("hidden");
-    if (res.status === "success") {
-      currentSchema = updatedSchema;
-      rebuildQuestionsMeta();
-      renderSurveyForm();
-      renderDashboardQuestionCards();
-      alert("บันทึกโครงสร้างสคีมาแบบสอบถามและเพิ่มหัวคอลัมน์ใน Google Sheets เรียบร้อยแล้ว!");
-    } else {
-      alert("บันทึกล้มเหลว: " + res.message);
-    }
-  })
-  .catch(err => {
-    if (overlay) overlay.classList.add("hidden");
-    console.error("Save schema error:", err);
-    alert("ไม่สามารถเข้าต่อเซิร์ฟเวอร์หลังบ้านได้");
-  });
+
+  return updatedSchema;
 }
 
 // UTILITIES
@@ -2599,6 +3416,12 @@ function getCookie(cname) {
     }
   }
   return "";
+}
+
+// สร้างรหัสคำถาม (id) ที่ไม่ชนกัน ใช้กับคำถามที่เพิ่มใหม่ในตัวสร้างแบบสอบถาม
+function generateQuestionId(prefix) {
+  const p = prefix || "Q";
+  return p + "_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 6);
 }
 
 function escapeHtml(text) {

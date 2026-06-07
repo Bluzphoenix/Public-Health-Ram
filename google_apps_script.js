@@ -19,16 +19,71 @@ function doGet(e) {
   try {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     
-    // 1. อ่านการตั้งค่าจากชีต Settings
-    var settings = getSurveySettings(ss);
+    // ดึงพารามิเตอร์ id และ token
+    var id = e && e.parameter ? e.parameter.id : null;
+    var token = e && e.parameter ? e.parameter.token : null;
     
-    // 2. อ่านโครงสร้างคำถามจากชีต SurveySchema
-    var schema = getSurveySchema(ss);
+    // ดึงข้อมูลแบบสอบถามทั้งหมด (และทำการอพยพข้อมูลย้ายมา Surveys อัตโนมัติหากทำครั้งแรก)
+    var surveys = getSurveysList(ss);
+    
+    var selectedSurvey = null;
+    if (token) {
+      for (var i = 0; i < surveys.length; i++) {
+        if (surveys[i].accessToken === token) {
+          selectedSurvey = surveys[i];
+          break;
+        }
+      }
+    }
+    
+    if (!selectedSurvey && id) {
+      for (var i = 0; i < surveys.length; i++) {
+        if (surveys[i].id === id) {
+          selectedSurvey = surveys[i];
+          break;
+        }
+      }
+    }
+    
+    // หากไม่ระบุหรือระบุแล้วไม่พบ ให้ค้นหาแบบสอบถามที่ active ตัวแรก
+    if (!selectedSurvey) {
+      for (var i = 0; i < surveys.length; i++) {
+        if (surveys[i].isActive === true || surveys[i].isActive === "true") {
+          selectedSurvey = surveys[i];
+          break;
+        }
+      }
+    }
+    
+    // หากยังไม่เจอเลย ให้ใช้แบบสอบถามตัวแรกสุดที่มี
+    if (!selectedSurvey && surveys.length > 0) {
+      selectedSurvey = surveys[0];
+    }
+    
+    // จัดรูปแบบให้สอดคล้องกับของเดิมสำหรับหน้าจอฝั่งผู้กรอก
+    var settings = selectedSurvey ? {
+      id: selectedSurvey.id,
+      surveyName: selectedSurvey.surveyName,
+      startTime: selectedSurvey.startTime,
+      endTime: selectedSurvey.endTime,
+      isActive: selectedSurvey.isActive,
+      accessToken: selectedSurvey.accessToken || ""
+    } : {
+      id: "default",
+      surveyName: "ไม่มีแบบสอบถามที่เปิดใช้งานในขณะนี้",
+      startTime: "",
+      endTime: "",
+      isActive: false,
+      accessToken: ""
+    };
+    
+    var schema = selectedSurvey && selectedSurvey.schema ? selectedSurvey.schema : [];
 
     return ContentService.createTextOutput(JSON.stringify({
       "status": "success",
       "settings": settings,
-      "schema": schema
+      "schema": schema,
+      "surveys": surveys
     }))
     .setMimeType(ContentService.MimeType.JSON)
     .setHeaders(corsHeader);
@@ -58,7 +113,7 @@ function doPost(e) {
     // ==========================================
     // ส่วนคำสั่งที่ต้องผ่านการยืนยันตัวตนแอดมิน (Secure Actions)
     // ==========================================
-    if (action === "fetch_data" || action === "fetch_admins" || action === "add_admin" || action === "delete_admin" || action === "save_settings" || action === "save_schema") {
+    if (action === "fetch_data" || action === "fetch_admins" || action === "add_admin" || action === "delete_admin" || action === "save_settings" || action === "save_schema" || action === "fetch_surveys" || action === "save_surveys") {
       var idToken = payload.idToken;
       if (!idToken) {
         return ContentService.createTextOutput(JSON.stringify({
@@ -149,9 +204,50 @@ function doPost(e) {
         .setHeaders(corsHeader);
       }
       
-      // 5. บันทึกการตั้งค่าเวลาและชื่อแบบประเมิน
+      // 5. ดึงข้อมูลแบบสอบถามทั้งหมด (Admin endpoint)
+      else if (action === "fetch_surveys") {
+        var surveys = getSurveysList(ss);
+        return ContentService.createTextOutput(JSON.stringify({
+          "status": "success",
+          "surveys": surveys
+        }))
+        .setMimeType(ContentService.MimeType.JSON)
+        .setHeaders(corsHeader);
+      }
+      
+      // 6. เซฟข้อมูลรายการแบบสอบถามทั้งหมด (Admin endpoint)
+      else if (action === "save_surveys") {
+        saveSurveysList(ss, payload.surveys);
+        return ContentService.createTextOutput(JSON.stringify({
+          "status": "success",
+          "message": "บันทึกรายการแบบสอบถามแล้ว"
+        }))
+        .setMimeType(ContentService.MimeType.JSON)
+        .setHeaders(corsHeader);
+      }
+      
+      // 7. บันทึกการตั้งค่าเวลาและชื่อแบบประเมิน (ของเดิม - ปรับปรุงลงชีต Surveys)
       else if (action === "save_settings") {
-        saveSurveySettings(ss, payload.settingsData);
+        var sData = payload.settingsData;
+        var surveys = getSurveysList(ss);
+        var found = false;
+        for (var i = 0; i < surveys.length; i++) {
+          if (surveys[i].id === sData.id) {
+            surveys[i].surveyName = sData.surveyName;
+            surveys[i].startTime = sData.startTime;
+            surveys[i].endTime = sData.endTime;
+            surveys[i].isActive = sData.isActive;
+            found = true;
+            break;
+          }
+        }
+        if (!found && surveys.length > 0) {
+          surveys[0].surveyName = sData.surveyName;
+          surveys[0].startTime = sData.startTime;
+          surveys[0].endTime = sData.endTime;
+          surveys[0].isActive = sData.isActive;
+        }
+        saveSurveysList(ss, surveys);
         return ContentService.createTextOutput(JSON.stringify({
           "status": "success",
           "message": "บันทึกการตั้งค่าเรียบร้อยแล้ว"
@@ -160,9 +256,23 @@ function doPost(e) {
         .setHeaders(corsHeader);
       }
       
-      // 6. บันทึกโครงสร้างแบบสอบถาม (Schema JSON)
+      // 8. บันทึกโครงสร้างแบบสอบถาม (Schema JSON) (ของเดิม - ปรับปรุงลงชีต Surveys)
       else if (action === "save_schema") {
-        saveSurveySchema(ss, payload.schemaData);
+        var schemaData = payload.schemaData;
+        var surveyId = payload.surveyId;
+        var surveys = getSurveysList(ss);
+        var found = false;
+        for (var i = 0; i < surveys.length; i++) {
+          if (surveys[i].id === surveyId) {
+            surveys[i].schema = schemaData;
+            found = true;
+            break;
+          }
+        }
+        if (!found && surveys.length > 0) {
+          surveys[0].schema = schemaData;
+        }
+        saveSurveysList(ss, surveys);
         return ContentService.createTextOutput(JSON.stringify({
           "status": "success",
           "message": "ปรับปรุงโครงสร้างคำถามเรียบร้อยแล้ว"
@@ -177,16 +287,45 @@ function doPost(e) {
     // ==========================================
     else {
       // ตรวจสอบเวลาก่อนบันทึกคำตอบเพื่อความปลอดภัยอีกชั้นหนึ่ง
-      var settings = getSurveySettings(ss);
-      var now = new Date();
-      if (settings.isActive === false || settings.isActive === "false") {
-        throw new Error("แบบสอบถามนี้ถูกปิดใช้งานชั่วคราว");
+      var surveys = getSurveysList(ss);
+      var surveyId = payload.Survey_ID;
+      var activeSurvey = null;
+      
+      for (var i = 0; i < surveys.length; i++) {
+        if (surveys[i].id === surveyId) {
+          activeSurvey = surveys[i];
+          break;
+        }
       }
-      if (settings.startTime && now < new Date(settings.startTime)) {
-        throw new Error("แบบสอบถามยังไม่เริ่มเปิดให้กรอกข้อมูล");
+      if (!activeSurvey) {
+        for (var i = 0; i < surveys.length; i++) {
+          if (surveys[i].isActive === true || surveys[i].isActive === "true") {
+            activeSurvey = surveys[i];
+            break;
+          }
+        }
       }
-      if (settings.endTime && now > new Date(settings.endTime)) {
-        throw new Error("แบบสอบถามหมดเวลาเปิดรับข้อมูลแล้ว");
+      if (!activeSurvey && surveys.length > 0) {
+        activeSurvey = surveys[0];
+      }
+
+      if (activeSurvey) {
+        var now = new Date();
+        if (activeSurvey.isActive === false || activeSurvey.isActive === "false") {
+          throw new Error("แบบสอบถามนี้ถูกปิดใช้งานชั่วคราว");
+        }
+        if (activeSurvey.startTime) {
+          var start = parseThaiDateTimeForScript(activeSurvey.startTime);
+          if (start && now < start) {
+            throw new Error("แบบสอบถามยังไม่เริ่มเปิดให้กรอกข้อมูล");
+          }
+        }
+        if (activeSurvey.endTime) {
+          var end = parseThaiDateTimeForScript(activeSurvey.endTime);
+          if (end && now > end) {
+            throw new Error("แบบสอบถามหมดเวลาเปิดรับข้อมูลแล้ว");
+          }
+        }
       }
 
       var sheet = ss.getSheets()[0]; // เก็บในชีตคำตอบแผ่นแรก
@@ -503,4 +642,163 @@ function getResponsesData(ss) {
     jsonArr.push(obj);
   }
   return jsonArr;
+}
+
+// MULTI-SURVEY MANAGEMENT HELPERS
+function getSurveysList(ss) {
+  var sheet = ss.getSheetByName("Surveys");
+  
+  // Backward compatibility migration:
+  // If "Surveys" sheet doesn't exist, check if old "Settings" and "SurveySchema" sheets exist.
+  // If so, load their values, create "Surveys" sheet, and save the old settings as the first survey.
+  // If not, initialize "Surveys" with a default survey.
+  if (!sheet) {
+    sheet = ss.insertSheet("Surveys");
+    sheet.getRange(1, 1, 1, 7).setValues([["ID", "Survey_Name", "Start_Time", "End_Time", "Is_Active", "Schema_JSON", "Access_Token"]]).setFontWeight("bold").setBackground("#e2f0d9");
+    
+    var oldSettingsSheet = ss.getSheetByName("Settings");
+    var oldSchemaSheet = ss.getSheetByName("SurveySchema");
+    
+    var initialSurvey = {
+      id: "s_" + new Date().getTime(),
+      surveyName: "แบบประเมินออนไลน์ ความคิดเห็นและความพึงพอใจต่อภาพรวมของการจัดเวที “สานพลัง สร้างนวัตกรรม สู่สุขภาวะชุมชนที่ยั่งยืน” ปี 2568",
+      startTime: "",
+      endTime: "",
+      isActive: true,
+      schema: [],
+      accessToken: "tk_" + Math.random().toString(36).substring(2, 10) + Math.random().toString(36).substring(2, 10)
+    };
+    
+    // Try migration
+    if (oldSettingsSheet) {
+      var oldSettings = getSurveySettings(ss);
+      initialSurvey.surveyName = oldSettings.surveyName || initialSurvey.surveyName;
+      initialSurvey.startTime = oldSettings.startTime || "";
+      initialSurvey.endTime = oldSettings.endTime || "";
+      initialSurvey.isActive = oldSettings.isActive !== undefined ? oldSettings.isActive : true;
+    }
+    
+    if (oldSchemaSheet) {
+      var oldSchema = getSurveySchema(ss);
+      if (oldSchema) {
+        initialSurvey.schema = oldSchema;
+      }
+    }
+    
+    // Save the initial survey to the new sheet
+    sheet.appendRow([
+      initialSurvey.id,
+      initialSurvey.surveyName,
+      initialSurvey.startTime,
+      initialSurvey.endTime,
+      String(initialSurvey.isActive),
+      JSON.stringify(initialSurvey.schema),
+      initialSurvey.accessToken
+    ]);
+    
+    return [initialSurvey];
+  }
+  
+  var lastRow = sheet.getLastRow();
+  var lastColumn = sheet.getLastColumn();
+  
+  // Ensure "Access_Token" header exists if migrating sheet column structure
+  if (lastColumn < 7) {
+    sheet.getRange(1, 7).setValue("Access_Token").setFontWeight("bold").setBackground("#e2f0d9");
+    lastColumn = 7;
+  }
+  
+  if (lastRow <= 1) {
+    return [];
+  }
+  
+  var data = sheet.getRange(2, 1, lastRow - 1, 7).getValues();
+  var surveys = [];
+  
+  for (var i = 0; i < data.length; i++) {
+    var schema = [];
+    try {
+      if (data[i][5]) {
+        schema = JSON.parse(data[i][5]);
+      }
+    } catch(e) {
+      schema = [];
+    }
+    
+    var token = data[i][6] ? String(data[i][6]) : "";
+    if (!token) {
+      token = "tk_" + Math.random().toString(36).substring(2, 10) + Math.random().toString(36).substring(2, 10);
+      data[i][6] = token;
+      sheet.getRange(i + 2, 7).setValue(token); // Write new token to sheet immediately
+    }
+    
+    surveys.push({
+      id: String(data[i][0]),
+      surveyName: String(data[i][1]),
+      startTime: String(data[i][2]),
+      endTime: String(data[i][3]),
+      isActive: (data[i][4] === "true" || data[i][4] === true),
+      schema: schema,
+      accessToken: token
+    });
+  }
+  return surveys;
+}
+
+function saveSurveysList(ss, surveys) {
+  var sheet = ss.getSheetByName("Surveys");
+  if (!sheet) {
+    sheet = ss.insertSheet("Surveys");
+  }
+  sheet.clear();
+  sheet.getRange(1, 1, 1, 7).setValues([["ID", "Survey_Name", "Start_Time", "End_Time", "Is_Active", "Schema_JSON", "Access_Token"]]).setFontWeight("bold").setBackground("#e2f0d9");
+  
+  if (surveys && surveys.length > 0) {
+    var rows = [];
+    for (var i = 0; i < surveys.length; i++) {
+      var s = surveys[i];
+      var token = s.accessToken || s.Access_Token || ("tk_" + Math.random().toString(36).substring(2, 10) + Math.random().toString(36).substring(2, 10));
+      rows.push([
+        s.id,
+        s.surveyName || "",
+        s.startTime || "",
+        s.endTime || "",
+        String(s.isActive),
+        JSON.stringify(s.schema || []),
+        token
+      ]);
+    }
+    sheet.getRange(2, 1, rows.length, 7).setValues(rows);
+  }
+}
+
+function parseThaiDateTimeForScript(str) {
+  if (!str) return null;
+  var cleanStr = str.replace(/เวลา/g, ' ').replace(/น\./g, ' ').replace(/\s+/g, ' ').trim();
+  if (cleanStr.indexOf('T') !== -1 || cleanStr.indexOf('-') !== -1) {
+    var d = new Date(cleanStr);
+    return isNaN(d.getTime()) ? null : d;
+  }
+  
+  var parts = cleanStr.split(' ');
+  var datePart = parts[0];
+  var timePart = parts[1] || "00:00";
+  
+  var dateSubparts = datePart.split('/');
+  if (dateSubparts.length !== 3) return null;
+  
+  var day = parseInt(dateSubparts[0], 10);
+  var month = parseInt(dateSubparts[1], 10) - 1;
+  var year = parseInt(dateSubparts[2], 10);
+  
+  if (year > 2400) {
+    year -= 543;
+  }
+  
+  var timeSubparts = timePart.split(':');
+  var hours = parseInt(timeSubparts[0] || 0, 10);
+  var minutes = parseInt(timeSubparts[1] || 0, 10);
+  
+  var parsedDate = new Date(year, month, day, hours, minutes);
+  return isNaN(parsedDate.getTime()) ? null : parsedDate;
 }
