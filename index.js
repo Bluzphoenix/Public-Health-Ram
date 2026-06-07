@@ -2,7 +2,7 @@
 // คัดลอก URL ของ Web App จาก Google Apps Script ที่ Deploy แล้วมาใส่ที่นี่
 const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzMqls_cNzL9q8t_CudEkLREJNdoIf8JqdrRVWK2fFVFjO6dGvBUqTBvaTxM_YEFMOE/exec";
 // ใส่ Client ID ที่ได้จาก Google Cloud Console ที่นี่ (หากเว้นว่างไว้ ระบบจะใช้ Login จำลองสำหรับการทดสอบ)
-const GOOGLE_CLIENT_ID = "";
+const GOOGLE_CLIENT_ID = "799024999113-el95t5e96keiv3h0ci7mb1qu1uu8n0tm.apps.googleusercontent.com";
 // คัดลอก URL ของ CSV ที่ได้จากการสั่ง Share > Publish to Web ของ Google Sheets มาใส่ที่นี่ (กรณีดึงแบบสาธารณะ - ปัจจุบันระบบใช้ความปลอดภัยดึงผ่านสคริปต์แทน)
 const GOOGLE_SHEET_CSV_URL = ""; 
 
@@ -243,7 +243,7 @@ generateMockData();
 
 // APP DATA
 let appData = [...MOCK_RESPONSES];
-let mockAdmins = ["admin@gmail.com"];
+let mockAdmins = ["earth.ekka@gmail.com"];
 let overviewChartInstance = null;
 window.activeCharts = {};
 
@@ -1348,11 +1348,6 @@ function renderMockLogin() {
       <button type="button" id="btn-mock-login" class="btn-primary" style="justify-content:center; width:100%;">
         เข้าสู่ระบบด้วยบัญชีจำลอง
       </button>
-      <span style="font-size:0.75rem; color:var(--text-muted); line-height:1.4;">
-        * โหมดจำลองเนื่องจากไม่ได้ระบุ Client ID *<br/>
-        ลองระบุ: <strong>admin@gmail.com</strong> (มีสิทธิ์)<br/>
-        ลองระบุ: <strong>guest@gmail.com</strong> (ไม่มีสิทธิ์)
-      </span>
     </div>
   `;
   
@@ -1361,8 +1356,8 @@ function renderMockLogin() {
     const errorMsg = document.getElementById("login-error-msg");
     if (errorMsg) errorMsg.classList.add("hidden");
     
-    if (mockAdmins.map(e => e.toLowerCase()).includes(emailInput) || emailInput === "admin@gmail.com") {
-      if (!mockAdmins.includes("admin@gmail.com")) mockAdmins.push("admin@gmail.com");
+    if (mockAdmins.map(e => e.toLowerCase()).includes(emailInput) || emailInput === "earth.ekka@gmail.com") {
+      if (!mockAdmins.includes("earth.ekka@gmail.com")) mockAdmins.push("earth.ekka@gmail.com");
       
       sessionStorage.setItem("admin_token", "mock-token-admin");
       sessionStorage.setItem("admin_email", emailInput);
@@ -1424,7 +1419,7 @@ function fetchDataSecurely(token) {
 
   if (!APPS_SCRIPT_URL) {
     console.log("ไม่มี APPS_SCRIPT_URL: ปลดล็อกแดชบอร์ดด้วยสถิติจำลอง");
-    const email = sessionStorage.getItem("admin_email") || "admin@gmail.com";
+    const email = sessionStorage.getItem("admin_email") || "earth.ekka@gmail.com";
     showAdminSession(email);
     if (loginPane) loginPane.classList.add("hidden");
     if (dashboardContent) dashboardContent.classList.remove("hidden");
@@ -2329,7 +2324,7 @@ function renderAdminsTable(adminsList) {
     return;
   }
   
-  const currentEmail = sessionStorage.getItem("admin_email") || "admin@gmail.com";
+  const currentEmail = sessionStorage.getItem("admin_email") || "earth.ekka@gmail.com";
   
   adminsList.forEach((email, index) => {
     const tr = document.createElement("tr");
