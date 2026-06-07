@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ประเมินผลเวทีสานพลัง 2568 - Dashboard & Evaluation Form</title>
+  <!-- Google Fonts: Inter & Sarabun -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- Google Identity Services (Sign-In) SDK -->
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <!-- Custom CSS -->
+  <link rel="stylesheet" href="index.css">
+</head>
+<body>
+
+  <!-- Top Navigation Bar -->
+  <header class="app-header">
+    <div class="header-container">
+      <div class="brand">
+        <span class="pulse-indicator"></span>
+        <h1 class="main-title" id="header-survey-title">ประเมินผลเวทีสานพลัง 2568</h1>
+        <p class="subtitle">ระบบวิเคราะห์ข้อมูลเรียลไทม์ & แบบสอบถามออนไลน์</p>
+      </div>
+      <div class="header-actions">
+        <div id="admin-profile-header" class="admin-profile hidden">
+          <span class="admin-avatar">A</span>
+          <div class="admin-info-text">
+            <span class="admin-role">ผู้ดูแลระบบ</span>
+            <span id="admin-email" class="admin-email-text">email@gmail.com</span>
+          </div>
+          <button id="btn-logout" class="btn-logout" title="ออกจากระบบ">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
+          </button>
+        </div>
+        <button id="btn-toggle-theme" class="btn-icon" title="เปลี่ยนธีม">
+          <svg class="sun-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707m2.828-9.9a5 5 0 117.07 7.07l-2.828-2.828z" /></svg>
+          <svg class="moon-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" /></svg>
+        </button>
+        <button id="btn-go-survey" class="btn-primary">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="18" height="18"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+          ทำแบบสอบถามออนไลน์
+        </button>
+        <button id="btn-back-dashboard" class="btn-secondary hidden">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="18" height="18"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>
+          กลับสู่หน้าแดชบอร์ด
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content Container -->
+  <main class="main-content">
+
+    <!-- VIEW 1: DASHBOARD VIEW (Default) -->
+    <section id="view-dashboard" class="view-section active">
+      
+      <!-- LOGIN PANE FOR ADMINS -->
+      <div id="dashboard-login-pane" class="login-pane">
+        <div class="login-card">
+          <div class="login-security-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="48" height="48"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+          </div>
+          <h3>พื้นที่ผู้ดูแลระบบ (Admin Access Only)</h3>
+          <p>กรุณาลงชื่อเข้าใช้ด้วยบัญชี Google ของผู้ดูแลระบบเพื่อเข้าถึงแดชบอร์ดสรุปสถิติและรายงานผลเรียลไทม์</p>
+          <div class="login-button-container">
+            <div id="google-login-btn"></div>
+          </div>
+          <div id="login-error-msg" class="login-error hidden">บัญชี Google นี้ไม่ได้รับสิทธิ์เข้าใช้งานแดชบอร์ดนี้</div>
+        </div>
+      </div>
+
+      <!-- DASHBOARD WRAPPER (HIDDEN UNTIL LOGIN SUCCESS) -->
+      <div id="dashboard-content" class="hidden">
+        
+        <!-- ADMIN NAVIGATION TABS -->
+        <div class="admin-navigation-tabs">
+          <button class="admin-tab-btn active" data-target="admin-tab-stats">📊 สถิติสรุปผล</button>
+          <button class="admin-tab-btn" data-target="admin-tab-users">👥 จัดการสิทธิ์แอดมิน</button>
+          <button class="admin-tab-btn" data-target="admin-tab-settings">⚙️ ตั้งค่า & QR Code</button>
+          <button class="admin-tab-btn" data-target="admin-tab-builder">✏️ สร้างแบบสอบถามใหม่</button>
+        </div>
+
+        <!-- TAB 1: STATISTICS (Original Dashboard) -->
+        <div id="admin-tab-stats" class="admin-tab-pane active">
+          <!-- Welcome/Intro -->
+          <div class="hero-banner">
+            <div class="hero-text">
+              <h2 id="dashboard-welcome-title">แดชบอร์ดสรุปผลภาพรวม</h2>
+              <p>แสดงผลสถิติจำนวนผู้เข้าร่วมและความพึงพอใจต่อแบบประเมินผลระบบเรียลไทม์ที่ดึงข้อมูลจากสเปรดชีตบน Google Sheets</p>
+            </div>
+            <div class="data-sync-info">
+              <span class="sync-dot"></span>
+              <span id="sync-status">กำลังเชื่อมต่อฐานข้อมูล...</span>
+            </div>
+          </div>
+
+          <!-- Key KPI Stats Cards -->
+          <div class="kpi-grid">
+            <div class="kpi-card">
+              <div class="kpi-icon teal-bg">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 005.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
+              </div>
+              <div class="kpi-details">
+                <p class="kpi-title">ผู้ตอบแบบสอบถามสะสม</p>
+                <h3 id="stat-total-responses" class="kpi-value">-</h3>
+                <p class="kpi-subtext">คน</p>
+              </div>
+            </div>
+
+            <div class="kpi-card">
+              <div class="kpi-icon indigo-bg">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" /></svg>
+              </div>
+              <div class="kpi-details">
+                <p class="kpi-title">ความพึงพอใจเฉลี่ยในภาพรวม</p>
+                <h3 id="stat-avg-satisfaction" class="kpi-value">-</h3>
+                <p class="kpi-subtext">เต็ม 10 คะแนน</p>
+              </div>
+            </div>
+
+            <div class="kpi-card">
+              <div class="kpi-icon emerald-bg">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+              </div>
+              <div class="kpi-details">
+                <p class="kpi-title">ระดับการมีส่วนร่วมเฉลี่ย</p>
+                <h3 id="stat-avg-participation" class="kpi-value">-</h3>
+                <p class="kpi-subtext">เต็ม 10 คะแนน</p>
+              </div>
+            </div>
+
+            <div class="kpi-card">
+              <div class="kpi-icon rose-bg">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+              </div>
+              <div class="kpi-details">
+                <p class="kpi-title">การนำไปใช้ประโยชน์เฉลี่ย</p>
+                <h3 id="stat-avg-application" class="kpi-value">-</h3>
+                <p class="kpi-subtext">เต็ม 10 คะแนน</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Main Overview Chart -->
+          <div class="dashboard-chart-section">
+            <div class="chart-card">
+              <div class="chart-header">
+                <h4>ความพึงพอใจเฉลี่ยในแต่ละด้าน (คะแนนเต็ม 5)</h4>
+                <p class="chart-subtitle">เปรียบเทียบสถิติรายด้าน: บริบท ปัจจัยนำเข้า กระบวนการ และผลผลิต</p>
+              </div>
+              <div class="chart-container">
+                <canvas id="chart-dimensions-overview"></canvas>
+              </div>
+            </div>
+          </div>
+
+          <!-- Categories & Questions Selector (Sub-page Gateways) -->
+          <div class="section-title-wrapper">
+            <h3 class="section-title">วิเคราะห์เจาะลึกรายข้อคำถาม</h3>
+            <p class="section-subtitle">คลิกเลือกข้อคำถามที่สนใจเพื่อเปิดดูรายละเอียดคำตอบ กราฟการกระจายคะแนน และข้อเสนอแนะรายข้อ</p>
+          </div>
+
+          <div class="dashboard-grid" id="dashboard-questions-container">
+            <!-- Dynamic Category blocks will be populated by index.js based on loaded schema -->
+          </div>
+        </div>
+
+        <!-- TAB 2: USER MANAGEMENT -->
+        <div id="admin-tab-users" class="admin-tab-pane">
+          <div class="section-title-wrapper">
+            <h3 class="section-title">จัดการสิทธิ์ผู้ดูแลระบบ (Admin User Management)</h3>
+            <p class="section-subtitle">ดูรายชื่อ เพิ่มเติมสิทธิ์ หรือเพิกถอนสิทธิ์อีเมลของแอดมินในการเข้าถึงแดชบอร์ดความปลอดภัย</p>
+          </div>
+
+          <div class="admin-users-layout">
+            <!-- Left: Add Admin Form -->
+            <div class="admin-add-card">
+              <h4>เพิ่มผู้ดูแลระบบรายใหม่</h4>
+              <p class="form-desc">กรุณาระบุบัญชี Google Email (Gmail) ของทีมงานที่ต้องการมอบสิทธิ์</p>
+              <form id="form-add-admin">
+                <div class="form-group">
+                  <label for="input-new-admin-email" class="form-label">ที่อยู่อีเมลแอดมิน</label>
+                  <input type="email" id="input-new-admin-email" class="form-control" placeholder="example@gmail.com" required>
+                </div>
+                <button type="submit" class="btn-primary" style="width: 100%; justify-content: center;">
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" /></svg>
+                  เพิ่มรายชื่อแอดมิน
+                </button>
+              </form>
+            </div>
+
+            <!-- Right: Admin list Table -->
+            <div class="admin-list-card">
+              <h4>รายชื่อแอดมินที่มีสิทธิ์ในระบบ</h4>
+              <div class="table-container mt-3">
+                <table class="minimal-table">
+                  <thead>
+                    <tr>
+                      <th style="width: 80px;">ลำดับ</th>
+                      <th>ที่อยู่อีเมลแอดมิน</th>
+                      <th style="width: 100px; text-align: center;">จัดการ</th>
+                    </tr>
+                  </thead>
+                  <tbody id="admin-users-list-tbody">
+                    <!-- Appended dynamically -->
+                    <tr><td colspan="3" style="text-align:center;">กำลังโหลดรายชื่อ...</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB 3: SETTINGS & QR GENERATOR -->
+        <div id="admin-tab-settings" class="admin-tab-pane">
+          <div class="section-title-wrapper">
+            <h3 class="section-title">ตั้งค่าวันเวลาและผลิต QR Code แบบสอบถาม</h3>
+            <p class="section-subtitle">กำหนดช่วงเวลาจำลองการตอบ และผลิตสื่อคิวอาร์โค้ดส่งต่อเพื่อเก็บข้อมูลจริง</p>
+          </div>
+
+          <div class="admin-settings-layout">
+            <!-- Left: Settings Form -->
+            <div class="settings-form-card">
+              <h4>ตั้งค่าข้อจำกัดแบบสอบถาม</h4>
+              <form id="form-survey-settings">
+                <div class="form-group">
+                  <label for="input-set-title" class="form-label">ชื่อแบบประเมินผล / แบบสอบถาม</label>
+                  <textarea id="input-set-title" rows="2" class="form-control" placeholder="ชื่อแบบประเมินสำหรับแสดงผลที่หน้าฟอร์มกรอกคำตอบ" required></textarea>
+                </div>
+                
+                <div class="form-row">
+                  <div class="form-group col-6">
+                    <label for="input-set-start" class="form-label">วันเวลาที่เริ่มเปิดรับข้อมูล</label>
+                    <input type="datetime-local" id="input-set-start" class="form-control">
+                  </div>
+                  <div class="form-group col-6">
+                    <label for="input-set-end" class="form-label">วันเวลาที่สิ้นสุด/ปิดรับข้อมูล</label>
+                    <input type="datetime-local" id="input-set-end" class="form-control">
+                  </div>
+                </div>
+
+                <div class="form-group">
+                  <label class="custom-checkbox">
+                    <input type="checkbox" id="input-set-active" checked>
+                    <span class="checkbox-box"></span>
+                    <span class="checkbox-text" style="font-weight: 600;">เปิดใช้งานแบบสอบถามนี้ (เปิดรับคำตอบ)</span>
+                  </label>
+                  <span class="field-hint">หากปิดช่องนี้ หน้าเว็บจะขึ้นแจ้งปิดรับคำตอบทันทีทุกกรณี</span>
+                </div>
+
+                <button type="submit" class="btn-primary" style="margin-top: 12px;">
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" /></svg>
+                  บันทึกการตั้งค่าลงชีต
+                </button>
+              </form>
+            </div>
+
+            <!-- Right: QR Code generator box -->
+            <div class="settings-qr-card">
+              <h4>QR Code สแกนเข้าทำแบบประเมิน</h4>
+              <p class="form-desc">ผลิตรหัสภาพอัตโนมัติเพื่อให้ผู้ตอบแบบประเมินสแกนผ่านโทรศัพท์มือถือเข้าทำรายการได้ทันที</p>
+              
+              <div class="qr-code-box">
+                <div id="qr-code-canvas-container" class="qr-container">
+                  <!-- QR Code image injected by JS -->
+                  <img id="qr-code-img" src="" alt="สแกนทำแบบสอบถาม">
+                </div>
+                <div class="qr-details">
+                  <span class="qr-url-title">ลิงก์แบบสอบถามสำหรับแชร์:</span>
+                  <a id="qr-url-link" href="#" target="_blank" class="qr-url-text">http://localhost:8000</a>
+                </div>
+              </div>
+
+              <div class="qr-actions mt-3">
+                <button type="button" id="btn-download-qr" class="btn-secondary">
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                  ดาวน์โหลดภาพ QR Code
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB 4: CREATE SURVEY / FORM BUILDER -->
+        <div id="admin-tab-builder" class="admin-tab-pane">
+          <div class="section-title-wrapper">
+            <h3 class="section-title">สร้างแบบสอบถามใหม่ (Dynamic Questionnaire Builder)</h3>
+            <p class="section-subtitle">ปรับปรุง แก้ไข เพิ่ม หรือลบคำถามได้ด้วยตนเอง มีโครงสร้างตั้งต้นตามเทมเพลต Word ในเครื่อง</p>
+          </div>
+
+          <div class="builder-actions-top">
+            <button type="button" id="btn-builder-reset" class="btn-secondary">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 8H18.5" /></svg>
+              รีเซ็ตกลับเป็นเทมเพลต Word ตั้งต้น
+            </button>
+            <button type="button" id="btn-builder-save" class="btn-success">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
+              สร้างและเปิดใช้งานแบบสอบถามใหม่
+            </button>
+          </div>
+
+          <div class="builder-sections-container">
+            <!-- Part 1 Builder Section -->
+            <div class="builder-section-card">
+              <div class="builder-section-header">
+                <h4>ส่วนที่ 1: ข้อมูลทั่วไป</h4>
+                <p>แก้ไขข้อมูลพื้นฐานทั่วไปที่ต้องการเก็บสถิติ</p>
+              </div>
+              <div class="builder-questions-list" id="builder-part1-list">
+                <!-- Injected dynamically by JS -->
+              </div>
+            </div>
+
+            <!-- Part 2 Builder Section -->
+            <div class="builder-section-card">
+              <div class="builder-section-header">
+                <h4>ส่วนที่ 2: ความคิดเห็นที่มีต่อเวทีจัดงาน (สเกลประเมิน 1-5)</h4>
+                <p>ข้อความแสดงทัศนคติ จัดกลุ่มตามด้านบริบท ปัจจัยนำเข้า กระบวนการ และผลผลิต</p>
+              </div>
+              <div class="builder-questions-list" id="builder-part2-list">
+                <!-- Injected dynamically by JS -->
+              </div>
+              <button type="button" id="btn-builder-add-part2" class="btn-add-question">
+                + เพิ่มคำถามประเมิน 1-5 ใหม่
+              </button>
+            </div>
+
+            <!-- Part 3 Builder Section -->
+            <div class="builder-section-card">
+              <div class="builder-section-header">
+                <h4>ส่วนที่ 3: ระดับความพึงพอใจและคำถามปลายเปิด</h4>
+                <p>การแสดงความเห็นประเมินสิ่งอำนวยความสะดวก การมีส่วนร่วม และข้อเสนอแนะตัวหนังสือ</p>
+              </div>
+              <div class="builder-questions-list" id="builder-part3-list">
+                <!-- Injected dynamically by JS -->
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div> <!-- /#dashboard-content -->
+    </section>
+
+    <!-- VIEW 3: SURVEY FORM VIEW (Evaluation Wizard) -->
+    <section id="view-survey" class="view-section">
+      <div class="form-container">
+        
+        <!-- SURVEY INACTIVE OVERLAY -->
+        <div id="survey-closed-pane" class="survey-closed-pane hidden">
+          <div class="closed-icon-wrapper">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="64" height="64"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+          </div>
+          <h3 id="closed-pane-title">แบบสอบถามปิดรับข้อมูล</h3>
+          <p id="closed-pane-message" class="mt-2">ขออภัย แบบสอบถามนี้สิ้นสุดระยะเวลาการเก็บข้อมูลแล้ว หรือถูกปิดใช้งานโดยผู้ดูแลระบบชั่วคราว</p>
+          <button id="btn-closed-back-dash" class="btn-primary mt-4">ไปที่แดชบอร์ดหลัก</button>
+        </div>
+
+        <!-- Form Header -->
+        <div class="form-header" id="survey-active-header">
+          <h2>แบบประเมินออนไลน์</h2>
+          <p class="subtitle" id="survey-active-subtitle">ความคิดเห็นและความพึงพอใจต่อภาพรวมของการจัดงาน</p>
+          
+          <!-- Wizard Steps Progress Bar -->
+          <div class="wizard-progress-bar">
+            <div class="progress-step active" data-step="0">ยินยอม</div>
+            <div class="progress-step" data-step="1">ข้อมูลทั่วไป</div>
+            <div class="progress-step" data-step="2">ความพึงพอใจ</div>
+            <div class="progress-step" data-step="3">ข้อเสนอแนะ</div>
+          </div>
+        </div>
+
+        <form id="evaluation-form" novalidate>
+          
+          <!-- STEP 0: CONSENT -->
+          <div class="form-step-pane active" data-step="0">
+            <div class="consent-box">
+              <h3>การชี้แจงวัตถุประสงค์และยินยอมเข้าร่วมการประเมิน</h3>
+              <p id="consent-text-desc">การสำรวจความคิดเห็นและความพึงพอใจต่อการจัดงาน เป็นกิจกรรมการรวบรวมข้อมูลเพื่อประเมินกระบวนการและผลของโครงการ โดยท่านถือเป็นกลุ่มผู้มีส่วนได้ส่วนเสีย การเข้าร่วมโครงการประเมินนี้ เป็นการเข้าร่วมโดยสมัครใจของท่าน ท่านสามารถถอนตัวจากการเข้าร่วมได้ตลอดเวลา โดยไม่ส่งผลกระทบใดๆ ประโยชน์จากการให้ข้อมูลในครั้งนี้ คือประโยชน์ทางอ้อมที่ใช้เป็นข้อมูลสนับสนุนในการปรับปรุงแก้ไขการจัดงานต่อไป</p>
+              
+              <div class="ethics-note">
+                <strong>การรับรองทางจริยธรรม:</strong>
+                <p>การดำเนินงานในครั้งนี้ได้ผ่านการพิจารณารับรองจริยธรรมการวิจัยในมนุษย์จากสำนักงานสาธารณสุขจังหวัดชลบุรี รหัส 036/2568 หากท่านมีข้อสงสัยประการใด ท่านสามารถติดต่อหัวหน้าโครงการประเมิน คือ รองศาสตราจารย์ ดร.พัชนา ใจดี คณะสาธารณสุขศาสตร์ มหาวิทยาลัยบูรพา โทร 081-7450978 e-mail Patchana@buu.ac.th</p>
+              </div>
+
+              <div class="form-group consent-options">
+                <label class="custom-radio">
+                  <input type="radio" name="Consent" value="ยินยอม" required>
+                  <span class="radio-label-text">ข้าพเจ้ายินยอมเข้าร่วมการตอบแบบประเมินนี้</span>
+                </label>
+                <label class="custom-radio">
+                  <input type="radio" name="Consent" value="ไม่ยินยอม">
+                  <span class="radio-label-text">ข้าพเจ้าไม่ยินยอมเข้าร่วม</span>
+                </label>
+                <div class="error-message">กรุณาเลือกความยินยอมเพื่อทำรายการต่อไป</div>
+              </div>
+            </div>
+            
+            <div class="step-footer">
+              <div></div>
+              <button type="button" class="btn-primary btn-next-step">ถัดไป</button>
+            </div>
+          </div>
+
+          <!-- STEP 1: GENERAL INFO (Populated Dynamically) -->
+          <div class="form-step-pane" data-step="1">
+            <h3 class="step-title">ส่วนที่ 1: ข้อมูลทั่วไปของผู้ตอบแบบสอบถาม</h3>
+            <div id="step-1-content">
+              <!-- Injected by JavaScript dynamically -->
+            </div>
+            
+            <div class="step-footer">
+              <button type="button" class="btn-secondary btn-prev-step">ย้อนกลับ</button>
+              <button type="button" class="btn-primary btn-next-step">ถัดไป</button>
+            </div>
+          </div>
+
+          <!-- STEP 2: OPINIONS (LIKERT 1-5 GRID) (Populated Dynamically) -->
+          <div class="form-step-pane" data-step="2">
+            <h3 class="step-title">ส่วนที่ 2: ความความคิดเห็นที่เกี่ยวข้องกับการจัดงาน</h3>
+            <p class="step-subtitle">โปรดประเมินระดับความเห็นด้วยกับข้อความต่อไปนี้</p>
+            
+            <div class="scale-legend">
+              <span class="legend-item"><span class="badge">5</span> มากที่สุด</span>
+              <span class="legend-item"><span class="badge">4</span> มาก</span>
+              <span class="legend-item"><span class="badge">3</span> ปานกลาง</span>
+              <span class="legend-item"><span class="badge">2</span> น้อย</span>
+              <span class="legend-item"><span class="badge">1</span> น้อยที่สุด</span>
+            </div>
+
+            <!-- Likert Questions List (Rendered dynamically in JS) -->
+            <div class="likert-wizard-container" id="likert-questions-wrapper">
+              <!-- Injected by JavaScript dynamically -->
+            </div>
+            
+            <div class="step-footer">
+              <button type="button" class="btn-secondary btn-prev-step">ย้อนกลับ</button>
+              <button type="button" class="btn-primary btn-next-step">ถัดไป</button>
+            </div>
+          </div>
+
+          <!-- STEP 3: SATISFACTION & SUGGESTIONS (Populated Dynamically) -->
+          <div class="form-step-pane" data-step="3">
+            <h3 class="step-title">ส่วนที่ 3: ระดับความพึงพอใจ การมีส่วนร่วม และการนำไปใช้ประโยชน์</h3>
+            <div id="step-3-content">
+              <!-- Injected by JavaScript dynamically -->
+            </div>
+
+            <div class="step-footer border-top">
+              <button type="button" class="btn-secondary btn-prev-step">ย้อนกลับ</button>
+              <button type="submit" class="btn-success" id="btn-submit-form">ส่งคำตอบแบบสอบถาม</button>
+            </div>
+          </div>
+
+        </form>
+
+        <!-- SUBMITTING OVERLAY -->
+        <div id="submitting-overlay" class="overlay-loader hidden">
+          <div class="loader-content">
+            <div class="spinner"></div>
+            <p>กำลังบันทึกคำตอบลงระบบฐานข้อมูล...</p>
+          </div>
+        </div>
+
+        <!-- THANK YOU PANE -->
+        <div id="thankyou-pane" class="thankyou-box hidden">
+          <div class="success-icon-wrapper">
+            <svg class="checkmark" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 52 52">
+              <circle class="checkmark__circle" cx="26" cy="26" r="25" fill="none"/>
+              <path class="checkmark__check" fill="none" d="M14.1 27.2l7.1 7.2 16.7-16.8"/>
+            </svg>
+          </div>
+          <h3>ส่งแบบสอบถามสำเร็จแล้ว</h3>
+          <p>คณะสาธารณสุขศาสตร์ มหาวิทยาลัยบูรพา ขอขอบคุณในการให้ความร่วมมือตอบแบบประเมินในครั้งนี้ ข้อคิดเห็นของท่านเป็นประโยชน์อย่างยิ่งในการพัฒนาโครงการสุขภาวะชุมชนต่อไป</p>
+          <button id="btn-thankyou-close" class="btn-primary">ไปที่แดชบอร์ดหลัก</button>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="app-footer">
+    <div class="footer-container">
+      <p>© 2026 เวทีสานพลังเพื่อสุขภาวะชุมชนที่ยั่งยืน. จัดทำโดย คณะสาธารณสุขศาสตร์ มหาวิทยาลัยบูรพา</p>
+      <p class="ethics-footer">ผ่านจริยธรรมการวิจัยจังหวัดชลบุรี รหัส 036/2568</p>
+    </div>
+  </footer>
+
+  <!-- Custom Javascript -->
+  <script src="index.js"></script>
+</body>
+</html>

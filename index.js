@@ -1,0 +1,2613 @@
+// CONFIGURATIONS
+// คัดลอก URL ของ Web App จาก Google Apps Script ที่ Deploy แล้วมาใส่ที่นี่
+const APPS_SCRIPT_URL = ""; 
+// ใส่ Client ID ที่ได้จาก Google Cloud Console ที่นี่ (หากเว้นว่างไว้ ระบบจะใช้ Login จำลองสำหรับการทดสอบ)
+const GOOGLE_CLIENT_ID = "";
+// คัดลอก URL ของ CSV ที่ได้จากการสั่ง Share > Publish to Web ของ Google Sheets มาใส่ที่นี่ (กรณีดึงแบบสาธารณะ - ปัจจุบันระบบใช้ความปลอดภัยดึงผ่านสคริปต์แทน)
+const GOOGLE_SHEET_CSV_URL = ""; 
+
+// DEFAULT QUESTIONNAIRE SCHEMA (Word Template fallback)
+const DEFAULT_SCHEMA = [
+  { id: "Gender", type: "categorical", text: "1. เพศของผู้ตอบแบบสอบถาม", choices: ["ชาย", "หญิง", "เพศทางเลือก"], step: 1, required: true },
+  { id: "Age", type: "numeric", text: "2. อายุของผู้ตอบแบบสอบถาม (ปี)", min: 15, max: 100, step: 1, required: true },
+  { id: "Network_Number", type: "text", text: "3. เลขที่เครือข่ายร่วมสร้างชุมชนท้องถิ่นน่าอยู่ (จำนวน 7 หลัก)", pattern: "^\\d{7}$", step: 1, required: true },
+  { id: "Respondent_Type", type: "categorical", text: "บทบาทการเข้าร่วมงาน", choices: ["กลุ่มเข้าร่วมงาน", "คณะทำงานจัดเวที / ผู้จัด / วิทยากร / ผู้ทรงคุณวุฒิ"], step: 1, required: true },
+  { id: "Attendance_Count", type: "numeric", text: "4. การเข้าร่วมเวทีสานพลัง (จำนวนครั้ง)", min: 0, step: 1, required: true },
+  { id: "Attendance_Years", type: "years-checkbox", text: "ระบุปีที่เคยเข้าร่วม (เลือกได้มากกว่า 1 ข้อ)", step: 1 },
+  { id: "Info_Channels", type: "multi-select", text: "5. ท่านรับรู้การจัดเวทีสานพลังฯ ในครั้งนี้จากช่องทางใด (เลือกได้มากกว่า 1 ข้อ)", choices: ["LINE", "E-mail", "โทรศัพท์", "เว๊บไซต์ สสส.", "อื่น ๆ"], hasOther: true, step: 1, required: true },
+  { id: "Primary_Channel", type: "categorical", text: "6. ช่องทางใดเป็นช่องทางการสื่อสารเพื่อประชาสัมพันธ์การจัดเวทีสานพลังฯ ที่สำคัญที่สุด (เลือกได้เพียงข้อเดียว)", choices: ["LINE", "E-mail", "โทรศัพท์", "เว๊บไซต์ สสส.", "อื่น ๆ"], hasOther: true, step: 1, required: true },
+  
+  // Part 2: Likert 1-5
+  { id: "Q7", type: "likert", text: "ก่อนเข้าร่วมเวทีสานพลังในครั้งนี้ ท่านรู้ว่ามีการจัดเวทีนี้เป็นอย่างดี", section: "Context", step: 2, required: true },
+  { id: "Q8", type: "likert", text: "ก่อนเข้าร่วมเวทีสานพลังในครั้งนี้ ท่านทราบถึงวัตถุประสงค์ของการจัดเวทีนี้เป็นอย่างดี", section: "Context", step: 2, required: true },
+  { id: "Q9", type: "likert", text: "ก่อนเข้าร่วมเวทีสานพลังในครั้งนี้ ท่านทราบถึงนโยบายของแผนสุขภาวะชุมชนเป็นอย่างดี", section: "Context", step: 2, required: true },
+  { id: "Q10", type: "likert", text: "ก่อนเข้าร่วมเวทีสานพลังในครั้งนี้ ท่านทราบถึงยุทธศาสตร์หรือแนวทางการทำงานตามแผนสุขภาวะชุมชนเป็นอย่างดี", section: "Context", step: 2, required: true },
+  { id: "Q11", type: "likert", text: "ท่านได้รับการสนับสนุนด้านทรัพยากรเพื่อใช้ในการเข้าร่วมเวทีสานพลังในครั้งนี้", section: "Input", step: 2, required: true },
+  { id: "Q12", type: "likert", text: "ท่านมีส่วนร่วมในการจัดกิจกรรมชี้นำ จุดประกายและสร้างแรงบันดาลใจ", section: "Process", step: 2, required: true },
+  { id: "Q13", type: "likert", text: "ท่านพอใจต่อการจัดกิจกรรมชี้นำ จุดประกายและสร้างแรงบันดาลใจ", section: "Process", step: 2, required: true },
+  { id: "Q14", type: "likert", text: "ท่านมีส่วนร่วมในการจัดกิจกรรมการแลกเปลี่ยนเรียนรู้ปฏิบัติการสุขภาวะชุมชน", section: "Process", step: 2, required: true },
+  { id: "Q15", type: "likert", text: "ท่านพอใจต่อการจัดกิจกรรมการแลกเปลี่ยนเรียนรู้ปฏิบัติการสุขภาวะชุมชน", section: "Process", step: 2, required: true },
+  { id: "Q16", type: "likert", text: "ท่านมีส่วนร่วมในการจัดกิจกรรมลานความรู้จากปฏิบัติการของชุมชนท้องถิ่น 4 ภาค", section: "Process", step: 2, required: true },
+  { id: "Q17", type: "likert", text: "ท่านพอใจต่อการจัดกิจกรรมลานความรู้จากปฏิบัติการของชุมชนท้องถิ่น 4 ภาค", section: "Process", step: 2, required: true },
+  { id: "Q18", type: "likert", text: "ท่านมีส่วนร่วมในการจัดกิจกรรมรูปธรรมจากการปฏิบัติของชุมชนท้องถิ่น", section: "Process", step: 2, required: true },
+  { id: "Q19", type: "likert", text: "ท่านพอใจต่อการจัดกิจกรรมรูปธรรมจากการปฏิบัติของชุมชนท้องถิ่น", section: "Process", step: 2, required: true },
+  { id: "Q20", type: "likert", text: "ท่านพอใจต่อสื่อที่นำเสนอในแต่ละกิจกรรม (ยกตัวอย่างสื่อ/คลิป)", section: "Process", step: 2, required: true },
+  { id: "Q21", type: "likert", text: "ท่านพอใจต่อระยะเวลาในแต่ละกิจกรรม", section: "Process", step: 2, required: true },
+  { id: "Q22", type: "likert", text: "ท่านพอใจต่อสถานที่ในการจัดแต่ละกิจกรรม", section: "Process", step: 2, required: true },
+  { id: "Q23", type: "likert", text: "หลังจากการเข้าร่วมเวทีสานพลัง ท่านรู้จักเวทีสานพลังฯ นี้เป็นอย่างดี", section: "Output", step: 2, required: true },
+  { id: "Q24", type: "likert", text: "หลังจากการเข้าร่วมเวทีสานพลัง ท่านทราบถึงวัตถุประสงค์ของการจัดเวทีสานพลังฯนี้เป็นอย่างดี", section: "Output", step: 2, required: true },
+  { id: "Q25", type: "likert", text: "หลังจากการเข้าร่วมเวทีสานพลัง ท่านทราบถึงนโยบายของแผนสุขภาวะชุมชนเป็นอย่างดี", section: "Output", step: 2, required: true },
+  { id: "Q26", type: "likert", text: "หลังจากการเข้าร่วมเวทีสานพลัง ท่านทราบถึงยุทธศาสตร์หรือแนวทางการทำงานตามแผนสุขภาวะชุมชนเป็นอย่างดี", section: "Output", step: 2, required: true },
+  
+  // Part 3
+  { id: "Q27", type: "ranking", text: "27. ความพึงพอใจต่อแนวทางการจัดกิจกรรมทั้ง 4 กิจกรรม (เรียงลำดับกิจกรรมที่พึงพอใจสูงสุด โดยแตะหรือลากวางสลับลำดับ)", choices: [
+    "กิจกรรมชี้นำ จุดประกายและสร้างแรงบันดาลใจ",
+    "กิจกรรมการแลกเปลี่ยนเรียนรู้ปฏิบัติการสุขภาวะชุมชน",
+    "กิจกรรมลานความรู้จากปฏิบัติการของชุมชนท้องถิ่น 4 ภาค",
+    "กิจกรรมรูปธรรมจากการปฏิบัติของชุมชนท้องถิ่น"
+  ], step: 3, required: true },
+  { id: "Q28", type: "likert", text: "28. ระดับความพึงพอใจต่อภาพอินโฟกราฟฟิกสื่อความหมายในกิจกรรมลานความรู้จากปฏิบัติการของชุมชนท้องถิ่น 4 ภาค (คะแนน 1-5)", section: "Infographic", step: 3, required: true },
+  { id: "Q29", type: "text", text: "29. ข้อเสนอแนะต่อการเพิ่มระดับความพึงพอใจของภาพอินโฟกราฟฟิกที่ใช้ในเวทีสานพลัง (คำถามปลายเปิด)", step: 3, required: false },
+  { id: "Q30", type: "facilities", text: "30. ระดับความพึงพอใจต่อสิ่งอำนวยความสะดวกในเวทีสานพลัง", subfields: ["Q30_Facility_Venue", "Q30_Facility_AV", "Q30_Facility_Catering", "Q30_Facility_Duration"], sublabels: ["สถานที่และสภาพแวดล้อมในการจัดงาน", "อุปกรณ์โสตทัศนูปกรณ์", "อาหารกลางวันและเครื่องดื่ม", "ระยะเวลาในการจัดงาน"], step: 3, required: true },
+  { id: "Q31", type: "text", text: "31. ข้อเสนอแนะต่อการเพิ่มระดับความพึงพอใจของสิ่งอำนวยความสะดวกในเวทีสานพลัง (คำถามปลายเปิด)", step: 3, required: false },
+  { id: "Q32", type: "score10", text: "32. ระดับการมีส่วนร่วมของท่านในเวทีสานพลัง (1-10 คะแนน)", step: 3, required: true },
+  { id: "Q33", type: "text", text: "33. ข้อเสนอแนะต่อการสร้างการมีส่วนร่วมในการจัดเวทีสานพลังฯ (คำถามปลายเปิด)", step: 3, required: false },
+  { id: "Q34", type: "score10", text: "34. ระดับความพึงพอใจในภาพรวมของท่านต่อเวทีสานพลัง (1-10 คะแนน)", step: 3, required: true },
+  { id: "Q35", type: "text", text: "35. ข้อเสนอแนะต่อการจัดเวทีสานพลังฯ ในภาพรวม (คำถามปลายเปิด)", step: 3, required: false },
+  { id: "Q36", type: "text", text: "36. รูปแบบของการจัดเวทีสานพลังฯ ในอนาคต ควรเป็นอย่างไร (คำถามปลายเปิด)", step: 3, required: false },
+  { id: "Q37", type: "multi-select", text: "37. ตามรูปแบบของข้อ 36 ตามที่ท่านเสนอมา ใครควรเข้าร่วมเวทีสานพลังฯ บ้างในอนาคต (เลือกได้มากกว่า 1 ข้อ)", choices: [
+    "องค์กรปกครองส่วนท้องถิ่น",
+    "ท้องที่ (กำนัน-ผู้ใหญ่)",
+    "องค์กรชุมชน (กลุ่มทางสังคม)",
+    "หน่วยงานรัฐในพื้นที่ (4 องค์กรหลัก)",
+    "อื่น ๆ"
+  ], hasOther: true, step: 3, required: true },
+  { id: "Q38", type: "score10", text: "38. ระดับของการนำความรู้ที่ได้จากเวทีสานพลังไปใช้ประโยชน์ (1-10 คะแนน)", step: 3, required: true },
+  { id: "Q39", type: "text", text: "39. ข้อเสนอแนะต่อแนวทางการนำไปใช้ประโยชน์ (คำถามปลายเปิด)", step: 3, required: false }
+];
+
+// STATE MANAGER
+let currentSchema = [...DEFAULT_SCHEMA];
+let currentSettings = {
+  surveyName: "แบบประเมินออนไลน์ ความคิดเห็นและความพึงพอใจต่อภาพรวมของการจัดเวที “สานพลัง สร้างนวัตกรรม สู่สุขภาวะชุมชนที่ยั่งยืน” ปี 2568",
+  startTime: "",
+  endTime: "",
+  isActive: true
+};
+let QUESTIONS_META = {};
+function rebuildQuestionsMeta() {
+  QUESTIONS_META = {};
+  currentSchema.forEach(q => {
+    QUESTIONS_META[q.id] = q;
+  });
+}
+rebuildQuestionsMeta();
+
+const MOCK_RESPONSES = [];
+function generateMockData() {
+  const genders = ["ชาย", "หญิง", "เพศทางเลือก"];
+  const roles = ["กลุ่มเข้าร่วมงาน", "คณะทำงานจัดเวที / ผู้จัด / วิทยากร / ผู้ทรงคุณวุฒิ"];
+  const channels = ["LINE", "E-mail", "โทรศัพท์", "เว๊บไซต์ สสส."];
+  const activities = [
+    "กิจกรรมชี้นำ จุดประกายและสร้างแรงบันดาลใจ",
+    "กิจกรรมการแลกเปลี่ยนเรียนรู้ปฏิบัติการสุขภาวะชุมชน",
+    "กิจกรรมลานความรู้จากปฏิบัติการของชุมชนท้องถิ่น 4 ภาค",
+    "กิจกรรมรูปธรรมจากการปฏิบัติของชุมชนท้องถิ่น"
+  ];
+  
+  const commentsQ29 = [
+    "อินโฟกราฟิกสวยมาก แต่อยากให้ขนาดฟอนต์ใหญ่กว่านี้เล็กน้อยเพื่อให้อ่านง่ายสำหรับผู้สูงอายุ",
+    "สีสันสวยสะดุดตาดีครับ จัดกลุ่มหัวข้อดีมาก",
+    "อยากให้มี QR Code สแกนดาวน์โหลดไฟล์ภาพเก็บไว้ศึกษาต่อด้วยค่ะ",
+    "ภาพสวยสื่อความหมายดี แต่อยากให้ลดปริมาณตัวหนังสือลงอีกนิด",
+    "ชอบการจัดวางและโทนสีดูสบายตาและมินิมอลดีค่ะ"
+  ];
+
+  const commentsQ31 = [
+    "อาหารกลางวันอร่อยมาก แต่คิวรับอาหารค่อนข้างยาว ควรเพิ่มจุดบริการ",
+    "เครื่องเสียงช่วงเช้ามีเสียงหอนเล็กน้อย แต่ช่วงบ่ายแก้ไขได้ดี สถานที่กว้างขวางเดินทางสะดวก",
+    "ห้องน้ำไม่ค่อยเพียงพอกับจำนวนคนในช่วงเวลาพักเบรก",
+    "ระยะเวลาดำเนินงานกระชับดีมาก แอร์ในหอประชุมหนาวเกินไปนิดนึงครับ",
+    "สิ่งอำนวยความสะดวกครบถ้วน แอร์เย็นสบาย อาหารเบรกหลากหลายดี"
+  ];
+
+  const commentsQ33 = [
+    "ควรมีช่วงเวทีแลกเปลี่ยนถามตอบกับชุมชนให้ยาวขึ้น",
+    "ชอบการจัดกระบวนการกลุ่มย่อย ทำให้ทุกคนมีส่วนร่วมได้พูดคุยจริง ๆ",
+    "การมีส่วนร่วมผ่านระบบโหวตออนไลน์ช่วยให้ร่วมแสดงความเห็นได้สะดวกดี",
+    "อยากให้เน้นกลุ่มเยาวชนเข้ามาร่วมแบ่งปันประสบการณ์เพิ่มขึ้น",
+    "จัดกิจกรรมได้มีปฏิสัมพันธ์ดีมากครับ วิทยากรชวนคุยสนุกดี"
+  ];
+
+  const commentsQ35 = [
+    "เป็นเวทีที่ดีมาก ได้สร้างเครือข่ายแลกเปลี่ยนกับจังหวัดอื่น ๆ",
+    "จัดงานได้สมบูรณ์แบบมากในปีนี้ ชื่นชมคณะทำงานคณะสาธารณสุข ม.บูรพา ครับ",
+    "เวทีแบบนี้ควรมีจัดทุกปีเพื่อติดตามความก้าวหน้างานสุขภาวะชุมชน",
+    "ประทับใจนวัตกรรมของท้องถิ่นต่าง ๆ มากมาย สามารถนำมาปรับใช้ที่ อบต. ได้",
+    "การจัดการเวทีดีขึ้นเรื่อย ๆ ครับ ขอบคุณผู้จัดงานและวิทยากรทุกท่าน"
+  ];
+
+  const commentsQ36 = [
+    "อยากให้จัดแบบกระจายตามภูมิภาค เพื่อให้ชุมชนเดินทางมาร่วมได้สะดวกขึ้น",
+    "จัดเป็นแบบ Hybrid มีถ่ายทอดสดผ่าน Facebook/Zoom สำหรับผู้ที่มาไม่ได้",
+    "ควรเพิ่มระยะเวลาเป็น 3 วันเต็มเพื่อที่จะได้ลงรายละเอียดในแต่ละห้องย่อยได้ครบ",
+    "ควรมีการจัดบูธแสดงสินค้าชุมชนแบบตลาดนัดสุขภาวะเพื่อจำหน่ายสินค้าจริง",
+    "ดีอยู่แล้วครับ แต่อาจเพิ่มการศึกษาดูงานในพื้นที่ชุมชนจริงประกอบด้วย"
+  ];
+
+  const commentsQ39 = [
+    "จะนำแนวคิดระบบลานความรู้ 4 ภาค ไปทดลองตั้งในศูนย์สุขภาพชุมชน",
+    "สามารถนำข้อตกลงและนโยบายกลับไปประยุกต์ทำธรรมนูญตำบลได้ทันที",
+    "ได้แรงบันดาลใจในการนำนวัตกรรมสุขภาวะไปปรับทำข้อบัญญัติท้องถิ่นเพื่อสนับสนุนการทำงาน",
+    "จะประสานงานเชื่อมโยง 4 องค์กรหลักในระดับพื้นที่ให้แน่นแฟ้นขึ้นตามแบบอย่างที่นี่",
+    "นำเอกสารและคลิปนำเสนอไปเปิดอบรมให้คณะทำงานของ อบต. ฟังต่อครับ"
+  ];
+
+  for (let i = 0; i < 48; i++) {
+    const gender = genders[Math.floor(Math.random() * genders.length)];
+    const role = roles[Math.random() > 0.3 ? 0 : 1];
+    const age = Math.floor(Math.random() * 35) + 25; 
+    const networkNum = String(Math.floor(Math.random() * 9000000) + 1000000);
+    const attendCount = Math.floor(Math.random() * 5);
+    
+    const possibleYears = [2554, 2555, 2556, 2557, 2558, 2559, 2560, 2561, 2562, 2563, 2565, 2566, 2567];
+    const attendYears = [];
+    if (attendCount > 0) {
+      for(let y = 0; y < attendCount; y++) {
+        const yr = possibleYears[Math.floor(Math.random() * possibleYears.length)];
+        if (!attendYears.includes(yr)) attendYears.push(yr);
+      }
+    }
+    
+    const numCh = Math.floor(Math.random() * 2) + 1;
+    const selectedCh = [];
+    for(let c=0; c<numCh; c++) {
+      const ch = channels[Math.floor(Math.random() * channels.length)];
+      if (!selectedCh.includes(ch)) selectedCh.push(ch);
+    }
+    const primCh = selectedCh[0];
+    
+    const row = {
+      Timestamp: new Date(2026, 5, 5, 9 + (i % 8), 12 + i, 30).toISOString(),
+      Consent: "ยินยอม",
+      Gender: gender,
+      Age: age,
+      Network_Number: networkNum,
+      Respondent_Type: role,
+      Attendance_Count: attendCount,
+      Attendance_Years: attendYears.join(", "),
+      Info_Channels: selectedCh.join(", "),
+      Info_Channels_Other: "",
+      Primary_Channel: primCh,
+      Primary_Channel_Other: ""
+    };
+
+    const baseSatisfaction = Math.floor(Math.random() * 2) + 4; 
+    for (let q = 7; q <= 26; q++) {
+      let score = baseSatisfaction;
+      if (Math.random() > 0.8) score -= 1;
+      if (Math.random() > 0.95) score -= 1;
+      row["Q" + q] = Math.max(1, score);
+    }
+    
+    const shuffledAct = [...activities].sort(() => Math.random() - 0.5);
+    row.Q27_Rank1 = shuffledAct[0];
+    row.Q27_Rank2 = shuffledAct[1];
+    row.Q27_Rank3 = shuffledAct[2];
+    row.Q27_Rank4 = shuffledAct[3];
+    
+    row.Q28 = Math.floor(Math.random() * 2) + 4; 
+    row.Q29 = Math.random() > 0.7 ? commentsQ29[Math.floor(Math.random() * commentsQ29.length)] : "";
+    
+    row.Q30_Facility_Venue = Math.floor(Math.random() * 2) + 4;
+    row.Q30_Facility_AV = Math.floor(Math.random() * 3) + 3;
+    row.Q30_Facility_Catering = Math.floor(Math.random() * 3) + 3;
+    row.Q30_Facility_Duration = Math.floor(Math.random() * 2) + 4;
+    row.Q31 = Math.random() > 0.7 ? commentsQ31[Math.floor(Math.random() * commentsQ31.length)] : "";
+    
+    row.Q32 = Math.floor(Math.random() * 4) + 7; 
+    row.Q33 = Math.random() > 0.7 ? commentsQ33[Math.floor(Math.random() * commentsQ33.length)] : "";
+    
+    row.Q34 = Math.floor(Math.random() * 3) + 8; 
+    row.Q35 = Math.random() > 0.7 ? commentsQ35[Math.floor(Math.random() * commentsQ35.length)] : "";
+    row.Q36 = Math.random() > 0.6 ? commentsQ36[Math.floor(Math.random() * commentsQ36.length)] : "";
+    
+    const futPart = ["องค์กรปกครองส่วนท้องถิ่น", "หน่วยงานรัฐในพื้นที่ (4 องค์กรหลัก)"];
+    if (Math.random() > 0.5) futPart.push("องค์กรชุมชน (กลุ่มทางสังคม)");
+    row.Q37 = futPart.join(", ");
+    row.Q37_Other = "";
+    
+    row.Q38 = Math.floor(Math.random() * 3) + 8; 
+    row.Q39 = Math.random() > 0.7 ? commentsQ39[Math.floor(Math.random() * commentsQ39.length)] : "";
+
+    MOCK_RESPONSES.push(row);
+  }
+}
+generateMockData();
+
+// APP DATA
+let appData = [...MOCK_RESPONSES];
+let mockAdmins = ["admin@gmail.com"];
+let overviewChartInstance = null;
+window.activeCharts = {};
+
+// DOM ELEMENTS
+const viewDashboard = document.getElementById('view-dashboard');
+const viewSurvey = document.getElementById('view-survey');
+const btnGoSurvey = document.getElementById('btn-go-survey');
+const btnBackDashboard = document.getElementById('btn-back-dashboard');
+const btnToggleTheme = document.getElementById('btn-toggle-theme');
+const syncStatusText = document.getElementById('sync-status');
+const syncDot = document.querySelector('.sync-dot');
+
+// ON APPLICATION INIT
+document.addEventListener("DOMContentLoaded", () => {
+  initTheme();
+  setupEventListeners();
+  checkIfSurveyCompleted();
+  setupFormWizard();
+  setupAdminTabs();
+  
+  // โหลดค่าและการตั้งค่าแบบสอบถามไดนามิก
+  loadPublicSettingsAndSchema();
+  
+  // ตรวจเช็คสิทธิ์ล็อกอินสำหรับเปิดดู Dashboard
+  initAdminAuth();
+});
+
+// THEME TOGGLE (Light/Dark)
+function initTheme() {
+  const isDark = localStorage.getItem('theme-dark') === 'true';
+  if (isDark) {
+    document.body.classList.add('dark-theme');
+  }
+}
+
+function setupEventListeners() {
+  btnToggleTheme.addEventListener('click', () => {
+    document.body.classList.toggle('dark-theme');
+    const isDark = document.body.classList.contains('dark-theme');
+    localStorage.setItem('theme-dark', isDark);
+    if (overviewChartInstance) renderOverviewChart();
+    // Redraw all dynamic charts
+    currentSchema.forEach(q => {
+      createQuestionChart(q, `chart-canvas-${q.id}`);
+    });
+  });
+
+  // Navigation
+  btnGoSurvey.addEventListener('click', () => showView('survey'));
+  btnBackDashboard.addEventListener('click', () => showView('dashboard'));
+  document.getElementById('btn-closed-back-dash').addEventListener('click', () => showView('dashboard'));
+
+  // Bind Add Admin form
+  const formAddAdmin = document.getElementById('form-add-admin');
+  if (formAddAdmin) {
+    formAddAdmin.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const emailInput = document.getElementById('input-new-admin-email');
+      if (emailInput) {
+        addAdmin(emailInput.value.trim());
+      }
+    });
+  }
+
+  // Bind Settings form
+  const formSettings = document.getElementById('form-survey-settings');
+  if (formSettings) {
+    formSettings.addEventListener('submit', handleSettingsSubmit);
+  }
+
+  // Bind Builder Top buttons
+  const btnBuilderReset = document.getElementById('btn-builder-reset');
+  if (btnBuilderReset) {
+    btnBuilderReset.addEventListener('click', handleBuilderReset);
+  }
+  const btnBuilderSave = document.getElementById('btn-builder-save');
+  if (btnBuilderSave) {
+    btnBuilderSave.addEventListener('click', saveBuilderSchema);
+  }
+
+  // Bind QR Code Download
+  const btnDownloadQr = document.getElementById('btn-download-qr');
+  if (btnDownloadQr) {
+    btnDownloadQr.addEventListener('click', downloadQRCode);
+  }
+}
+
+// LOAD SETTINGS AND SCHEMA FROM SERVER
+function loadPublicSettingsAndSchema() {
+  if (!APPS_SCRIPT_URL) {
+    console.log("ไม่มี APPS_SCRIPT_URL: โหลดสคีมาจาก LocalStorage หรือค่าตั้งต้น");
+    loadDefaultSettingsAndSchema();
+    return;
+  }
+  
+  if (syncStatusText) {
+    syncStatusText.innerText = "กำลังดาวน์โหลดโครงสร้างคำถาม...";
+  }
+  
+  fetch(APPS_SCRIPT_URL)
+    .then(res => {
+      if (!res.ok) throw new Error("HTTP error " + res.status);
+      return res.json();
+    })
+    .then(res => {
+      if (res.status === "success") {
+        if (res.settings) {
+          currentSettings = res.settings;
+        }
+        if (res.schema && Array.isArray(res.schema)) {
+          currentSchema = res.schema;
+        } else {
+          currentSchema = DEFAULT_SCHEMA;
+        }
+        
+        rebuildQuestionsMeta();
+        applySettings();
+        renderSurveyForm();
+        renderDashboardQuestionCards();
+        checkSurveyStatus();
+        
+        if (syncStatusText) {
+          syncStatusText.innerText = "เชื่อมต่อและดึงข้อมูลแบบสอบถามแล้ว";
+          syncStatusText.style.color = "var(--success)";
+        }
+        if (syncDot) syncDot.classList.add('connected');
+      } else {
+        console.error("Apps Script load error:", res.message);
+        loadDefaultSettingsAndSchema();
+      }
+    })
+    .catch(err => {
+      console.error("Failed to fetch settings from Apps Script:", err);
+      loadDefaultSettingsAndSchema();
+    });
+}
+
+function loadDefaultSettingsAndSchema() {
+  const localSettings = localStorage.getItem("survey_settings");
+  const localSchema = localStorage.getItem("survey_schema");
+  
+  if (localSettings) {
+    currentSettings = JSON.parse(localSettings);
+  } else {
+    currentSettings = {
+      surveyName: "แบบประเมินออนไลน์ ความคิดเห็นและความพึงพอใจต่อภาพรวมของการจัดเวที “สานพลัง สร้างนวัตกรรม สู่สุขภาวะชุมชนที่ยั่งยืน” ปี 2568",
+      startTime: "2026-07-03T13:00",
+      endTime: "2026-07-05T13:00",
+      isActive: true
+    };
+  }
+  
+  if (localSchema) {
+    currentSchema = JSON.parse(localSchema);
+  } else {
+    currentSchema = DEFAULT_SCHEMA;
+  }
+  
+  rebuildQuestionsMeta();
+  applySettings();
+  renderSurveyForm();
+  renderDashboardQuestionCards();
+  checkSurveyStatus();
+  
+  if (syncStatusText) {
+    syncStatusText.innerText = "ใช้งานโหมดจำลอง (Local Mode)";
+    syncStatusText.style.color = "var(--text-muted)";
+  }
+}
+
+function applySettings() {
+  const headerTitle = document.getElementById("header-survey-title");
+  if (headerTitle) headerTitle.innerText = currentSettings.surveyName;
+  
+  const welcomeTitle = document.getElementById("dashboard-welcome-title");
+  if (welcomeTitle) welcomeTitle.innerText = "แดชบอร์ดสรุปผลภาพรวม - " + currentSettings.surveyName;
+  
+  const activeSubtitle = document.getElementById("survey-active-subtitle");
+  if (activeSubtitle) activeSubtitle.innerText = "ความคิดเห็นและความพึงพอใจต่อภาพรวมของการจัดงาน";
+}
+
+function checkSurveyStatus() {
+  const closedPane = document.getElementById("survey-closed-pane");
+  const activeHeader = document.getElementById("survey-active-header");
+  const form = document.getElementById("evaluation-form");
+  
+  const now = new Date();
+  let isClosed = !currentSettings.isActive;
+  
+  if (currentSettings.startTime) {
+    const start = new Date(currentSettings.startTime);
+    if (!isNaN(start.getTime()) && now < start) {
+      isClosed = true;
+      document.getElementById("closed-pane-message").innerText = "แบบสอบถามยังไม่เปิดให้กรอกข้อมูล (จะเปิดให้กรอกตั้งแต่วันที่ " + formatThaiDateTime(start) + ")";
+    }
+  }
+  
+  if (currentSettings.endTime) {
+    const end = new Date(currentSettings.endTime);
+    if (!isNaN(end.getTime()) && now > end) {
+      isClosed = true;
+      document.getElementById("closed-pane-message").innerText = "แบบสอบถามสิ้นสุดระยะเวลาการเก็บข้อมูลแล้ว (ปิดรับคำตอบเมื่อวันที่ " + formatThaiDateTime(end) + ")";
+    }
+  }
+  
+  if (!currentSettings.isActive) {
+    document.getElementById("closed-pane-message").innerText = "แบบสอบถามถูกปิดใช้งานชั่วคราวโดยผู้ดูแลระบบ";
+  }
+  
+  if (isClosed) {
+    if (closedPane) closedPane.classList.remove("hidden");
+    if (activeHeader) activeHeader.classList.add("hidden");
+    if (form) form.classList.add("hidden");
+  } else {
+    if (closedPane) closedPane.classList.add("hidden");
+    if (activeHeader) activeHeader.classList.remove("hidden");
+    if (form) form.classList.remove("hidden");
+  }
+}
+
+function formatThaiDateTime(date) {
+  const months = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
+  const day = date.getDate();
+  const month = months[date.getMonth()];
+  const year = date.getFullYear() + 543;
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  return `${day} ${month} ${year} เวลา ${hours}:${minutes} น.`;
+}
+
+// CHECK DUPLICATE SUBMISSION STATE
+function checkIfSurveyCompleted() {
+  const completed = localStorage.getItem('survey_completed') || getCookie('survey_completed');
+  if (completed) {
+    btnGoSurvey.classList.add('hidden');
+  }
+}
+
+function showView(viewName) {
+  const viewDashboard = document.getElementById('view-dashboard');
+  const viewSurvey = document.getElementById('view-survey');
+  
+  if (viewDashboard) viewDashboard.classList.remove('active');
+  if (viewSurvey) viewSurvey.classList.remove('active');
+  
+  btnGoSurvey.classList.remove('hidden');
+  btnBackDashboard.classList.add('hidden');
+  
+  checkIfSurveyCompleted();
+  checkSurveyStatus();
+
+  if (viewName === 'dashboard') {
+    if (viewDashboard) viewDashboard.classList.add('active');
+    renderDashboardOverview();
+  } else if (viewName === 'survey') {
+    if (localStorage.getItem('survey_completed') || getCookie('survey_completed')) {
+      alert("ท่านได้ทำแบบสอบถามบนอุปกรณ์นี้เรียบร้อยแล้ว และระบบไม่อนุญาตให้กรอกซ้ำ ขอขอบพระคุณครับ");
+      if (viewDashboard) viewDashboard.classList.add('active');
+      return;
+    }
+    if (viewSurvey) viewSurvey.classList.add('active');
+    btnGoSurvey.classList.add('hidden');
+    btnBackDashboard.classList.remove('hidden');
+    goToWizardStep(0);
+  }
+}
+
+// WIZARD STEP SYSTEM
+function setupFormWizard() {
+  const form = document.getElementById('evaluation-form');
+  
+  form.querySelectorAll('.btn-next-step').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const currentStepPane = form.querySelector('.form-step-pane.active');
+      const currentStep = parseInt(currentStepPane.getAttribute('data-step'));
+      
+      if (validateStep(currentStep)) {
+        goToWizardStep(currentStep + 1);
+      }
+    });
+  });
+
+  form.querySelectorAll('.btn-prev-step').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const currentStepPane = form.querySelector('.form-step-pane.active');
+      const currentStep = parseInt(currentStepPane.getAttribute('data-step'));
+      goToWizardStep(currentStep - 1);
+    });
+  });
+
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const currentStepPane = form.querySelector('.form-step-pane.active');
+    const currentStep = parseInt(currentStepPane.getAttribute('data-step'));
+    
+    if (validateStep(currentStep)) {
+      submitFormAnswers();
+    }
+  });
+}
+
+function goToWizardStep(stepNum) {
+  document.querySelectorAll('.form-step-pane').forEach(pane => pane.classList.remove('active'));
+  document.querySelector(`.form-step-pane[data-step="${stepNum}"]`).classList.add('active');
+  
+  document.querySelectorAll('.progress-step').forEach((el, idx) => {
+    el.classList.remove('active', 'completed');
+    if (idx === stepNum) {
+      el.classList.add('active');
+    } else if (idx < stepNum) {
+      el.classList.add('completed');
+    }
+  });
+  
+  document.querySelector('.form-container').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function validateStep(stepNum) {
+  let isValid = true;
+  const pane = document.querySelector(`.form-step-pane[data-step="${stepNum}"]`);
+  
+  pane.querySelectorAll('.form-group.has-error').forEach(el => el.classList.remove('has-error'));
+  pane.querySelectorAll('.likert-form-card.has-error').forEach(el => el.classList.remove('has-error'));
+  pane.querySelectorAll('.sub-rate-item.has-error').forEach(el => el.classList.remove('has-error'));
+
+  const stepQuestions = currentSchema.filter(q => q.step === stepNum);
+  
+  if (stepNum === 0) {
+    const consentVal = pane.querySelector('input[name="Consent"]:checked');
+    if (!consentVal) {
+      pane.querySelector('.consent-options').closest('.form-group').classList.add('has-error');
+      isValid = false;
+    } else if (consentVal.value === "ไม่ยินยอม") {
+      alert("ขอขอบพระคุณท่านสำหรับการเข้าชมระบบ คณะทำงานวิจัยต้องขออภัยที่ไม่สามารถเก็บข้อมูลจากท่านได้หากท่านไม่ประสงค์กดยินยอมเข้าร่วมโครงการ");
+      isValid = false;
+    }
+  } else {
+    stepQuestions.forEach(q => {
+      if (!q.required) return;
+      
+      let qValid = true;
+      
+      if (q.type === "categorical" || q.type === "likert") {
+        const checked = pane.querySelector(`input[name="${q.id}"]:checked`);
+        if (!checked) qValid = false;
+      }
+      else if (q.type === "numeric") {
+        const val = pane.querySelector(`input[name="${q.id}"]`).value;
+        if (val === "" || isNaN(val)) {
+          qValid = false;
+        } else {
+          const num = Number(val);
+          if (q.min !== undefined && num < q.min) qValid = false;
+          if (q.max !== undefined && num > q.max) qValid = false;
+        }
+      }
+      else if (q.type === "text") {
+        const val = pane.querySelector(`input[name="${q.id}"]`).value.trim();
+        if (val === "") {
+          qValid = false;
+        } else if (q.pattern) {
+          const regex = new RegExp(q.pattern);
+          if (!regex.test(val)) qValid = false;
+        }
+      }
+      else if (q.type === "multi-select") {
+        const checked = pane.querySelectorAll(`input[name="${q.id}_List"]:checked`);
+        if (checked.length === 0) qValid = false;
+      }
+      else if (q.type === "facilities") {
+        q.subfields.forEach(sub => {
+          const checked = pane.querySelector(`input[name="${sub}"]:checked`);
+          if (!checked) {
+            qValid = false;
+            const row = pane.querySelector(`input[name="${sub}"]`);
+            if (row) row.closest('.sub-rate-item').classList.add('has-error');
+          }
+        });
+      }
+      
+      if (!qValid) {
+        isValid = false;
+        const input = pane.querySelector(`[name="${q.id}"], [name="${q.id}_List"], [name="${q.id}_Item"]`);
+        if (input) {
+          const container = input.closest('.form-group') || input.closest('.likert-form-card') || input.closest('.facilities-rating-card');
+          if (container) container.classList.add('has-error');
+        }
+      }
+    });
+  }
+
+  if (!isValid) {
+    const firstErr = pane.querySelector('.has-error, .sub-rate-item.has-error');
+    if (firstErr) {
+      firstErr.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }
+
+  return isValid;
+}
+
+// DYNAMIC GENERATION OF ELEMENTS IN SURVEY
+function renderSurveyForm() {
+  const step1 = document.getElementById("step-1-content");
+  const likertWrapper = document.getElementById("likert-questions-wrapper");
+  const step3 = document.getElementById("step-3-content");
+  
+  if (!step1 || !likertWrapper || !step3) return;
+
+  // 1. Render Step 1
+  let step1Html = "";
+  const step1Questions = currentSchema.filter(q => q.step === 1);
+  
+  step1Questions.forEach(q => {
+    if (q.id === "Attendance_Years") {
+      step1Html += `
+        <div class="form-group hidden" id="attendance-years-wrapper">
+          <label class="form-label">${q.text}</label>
+          <div class="checkbox-grid">
+            <!-- Populated dynamically -->
+          </div>
+          <input type="hidden" name="Attendance_Years" id="input-attend-years">
+        </div>
+      `;
+    } else {
+      step1Html += `<div class="form-group" data-qid="${q.id}">`;
+      step1Html += `<label class="form-label">${q.text} ${q.required ? '<span style="color:var(--danger)">*</span>' : ""}</label>`;
+      
+      if (q.type === "categorical") {
+        step1Html += `<div class="radio-options-grid">`;
+        q.choices.forEach(choice => {
+          step1Html += `
+            <label class="custom-radio">
+              <input type="radio" name="${q.id}" value="${choice}">
+              <span class="radio-label-text">${choice}</span>
+            </label>
+          `;
+        });
+        step1Html += `</div>`;
+        
+        if (q.hasOther) {
+          step1Html += `
+            <div class="div-other hidden" id="div-${q.id}-other" style="margin-top:8px;">
+              <input type="text" name="${q.id}_Other" class="form-control" placeholder="โปรดระบุรายละเอียด...">
+            </div>
+          `;
+        }
+      }
+      else if (q.type === "multi-select") {
+        step1Html += `<div class="checkbox-grid-channels">`;
+        q.choices.forEach(choice => {
+          step1Html += `
+            <label class="custom-checkbox">
+              <input type="checkbox" name="${q.id}_List" value="${choice}">
+              <span class="checkbox-box"></span>
+              <span class="checkbox-text">${choice}</span>
+            </label>
+          `;
+        });
+        step1Html += `</div>`;
+        
+        if (q.hasOther) {
+          step1Html += `
+            <div class="div-other hidden" id="div-${q.id}-other" style="margin-top:8px;">
+              <input type="text" name="${q.id}_Other" class="form-control" placeholder="โปรดระบุรายละเอียด...">
+            </div>
+          `;
+        }
+      }
+      else if (q.type === "numeric") {
+        step1Html += `
+          <input type="number" name="${q.id}" id="input-${q.id}" class="form-control" 
+                 min="${q.min !== undefined ? q.min : ''}" 
+                 max="${q.max !== undefined ? q.max : ''}" 
+                 placeholder="${q.text}">
+        `;
+      }
+      else if (q.type === "text") {
+        step1Html += `
+          <input type="text" name="${q.id}" class="form-control" placeholder="${q.text}">
+        `;
+      }
+      
+      step1Html += `<div class="error-message">กรุณากรอกข้อมูลในข้อนี้ให้ถูกต้อง</div>`;
+      step1Html += `</div>`;
+    }
+  });
+  
+  step1.innerHTML = step1Html;
+  
+  generateYearsCheckboxes();
+  
+  // Bind toggle events for Step 1
+  step1Questions.forEach(q => {
+    if (q.hasOther) {
+      const radios = step1.querySelectorAll(`input[name="${q.id}"]`);
+      radios.forEach(r => {
+        r.addEventListener('change', () => {
+          const isOther = step1.querySelector(`input[name="${q.id}"]:checked`)?.value === "อื่น ๆ";
+          document.getElementById(`div-${q.id}-other`).classList.toggle('hidden', !isOther);
+        });
+      });
+      
+      const checkboxes = step1.querySelectorAll(`input[name="${q.id}_List"]`);
+      checkboxes.forEach(c => {
+        c.addEventListener('change', () => {
+          const checked = Array.from(step1.querySelectorAll(`input[name="${q.id}_List"]:checked`)).map(el => el.value);
+          document.getElementById(`div-${q.id}-other`).classList.toggle('hidden', !checked.includes("อื่น ๆ"));
+        });
+      });
+    }
+    
+    if (q.id === "Attendance_Count") {
+      const input = step1.querySelector(`#input-Attendance_Count`);
+      if (input) {
+        input.addEventListener('input', (e) => {
+          const val = parseInt(e.target.value);
+          const wrapper = document.getElementById('attendance-years-wrapper');
+          if (wrapper) {
+            if (val > 0) {
+              wrapper.classList.remove('hidden');
+            } else {
+              wrapper.classList.add('hidden');
+              wrapper.querySelectorAll('input:checked').forEach(c => c.checked = false);
+              document.getElementById('input-attend-years').value = "";
+            }
+          }
+        });
+      }
+    }
+  });
+
+  // 2. Render Step 2
+  let likertHtml = "";
+  const step2Questions = currentSchema.filter(q => q.step === 2 && q.type === "likert");
+  
+  step2Questions.forEach(q => {
+    const sectionName = q.section === "Context" ? "ด้านบริบทเวทีสานพลัง (Context)" :
+                        q.section === "Input" ? "ด้านปัจจัยนำเข้า (Input)" :
+                        q.section === "Process" ? "ด้านกระบวนการจัดการ (Process)" : "ด้านผลลัพธ์เวทีฯ (Output/Outcome)";
+    
+    likertHtml += `
+      <div class="likert-form-card" data-qid="${q.id}">
+        <div class="likert-card-header">
+          <span class="likert-q-num">${q.id} • ${sectionName}</span>
+        </div>
+        <div class="likert-q-text">${q.text}</div>
+        <div class="radio-grid-row">
+          <label class="btn-radio-score">
+            <input type="radio" name="${q.id}" value="1"><span>1</span>
+          </label>
+          <label class="btn-radio-score">
+            <input type="radio" name="${q.id}" value="2"><span>2</span>
+          </label>
+          <label class="btn-radio-score">
+            <input type="radio" name="${q.id}" value="3"><span>3</span>
+          </label>
+          <label class="btn-radio-score">
+            <input type="radio" name="${q.id}" value="4"><span>4</span>
+          </label>
+          <label class="btn-radio-score">
+            <input type="radio" name="${q.id}" value="5"><span>5</span>
+          </label>
+        </div>
+        <div class="error-message">กรุณาให้คะแนนข้อคำถามนี้</div>
+      </div>
+    `;
+  });
+  likertWrapper.innerHTML = likertHtml;
+
+  // 3. Render Step 3
+  let step3Html = "";
+  const step3Questions = currentSchema.filter(q => q.step === 3);
+  
+  step3Questions.forEach(q => {
+    step3Html += `<div class="form-group" data-qid="${q.id}">`;
+    
+    if (q.type === "ranking") {
+      step3Html += `
+        <label class="form-label">${q.text}</label>
+        <div class="ranking-sort-container">
+          <ul id="sortable-activities" class="ranking-list">
+      `;
+      q.choices.forEach((choice, idx) => {
+        step3Html += `
+          <li class="ranking-item" draggable="true" data-id="${choice}">
+            <span class="rank-badge">${idx + 1}</span>
+            <span class="rank-text">${choice}</span>
+            <span class="rank-handle">☰</span>
+          </li>
+        `;
+      });
+      step3Html += `
+          </ul>
+        </div>
+      `;
+      q.choices.forEach((choice, idx) => {
+        step3Html += `<input type="hidden" name="${q.id}_Rank${idx + 1}" id="input-${q.id}-r${idx + 1}" value="${choice}">`;
+      });
+    }
+    else if (q.type === "likert") {
+      step3Html += `
+        <label class="form-label">${q.text} ${q.required ? '<span style="color:var(--danger)">*</span>' : ""}</label>
+        <div class="infographic-preview-box" style="margin-bottom:16px;">
+          <img src="assets/image1.png" alt="อินโฟกราฟฟิก" style="max-width:100%; height:auto; border-radius:8px; border:1px solid var(--border-color); display:block; margin:0 auto;">
+        </div>
+        <div class="radio-grid-row">
+          <label class="btn-radio-score">
+            <input type="radio" name="${q.id}" value="1"><span>1</span>
+          </label>
+          <label class="btn-radio-score">
+            <input type="radio" name="${q.id}" value="2"><span>2</span>
+          </label>
+          <label class="btn-radio-score">
+            <input type="radio" name="${q.id}" value="3"><span>3</span>
+          </label>
+          <label class="btn-radio-score">
+            <input type="radio" name="${q.id}" value="4"><span>4</span>
+          </label>
+          <label class="btn-radio-score">
+            <input type="radio" name="${q.id}" value="5"><span>5</span>
+          </label>
+        </div>
+      `;
+    }
+    else if (q.type === "facilities") {
+      step3Html += `
+        <label class="form-label" style="font-weight:600; margin-bottom:12px;">${q.text}</label>
+        <div class="facilities-rating-card">
+      `;
+      q.subfields.forEach((sub, idx) => {
+        const sublabel = q.sublabels ? q.sublabels[idx] : sub;
+        step3Html += `
+          <div class="sub-rate-item">
+            <span class="sub-rate-title">${sublabel} <span style="color:var(--danger)">*</span></span>
+            <div class="radio-grid-row">
+              <label class="btn-radio-score">
+                <input type="radio" name="${sub}" value="1"><span>1</span>
+              </label>
+              <label class="btn-radio-score">
+                <input type="radio" name="${sub}" value="2"><span>2</span>
+              </label>
+              <label class="btn-radio-score">
+                <input type="radio" name="${sub}" value="3"><span>3</span>
+              </label>
+              <label class="btn-radio-score">
+                <input type="radio" name="${sub}" value="4"><span>4</span>
+              </label>
+              <label class="btn-radio-score">
+                <input type="radio" name="${sub}" value="5"><span>5</span>
+              </label>
+            </div>
+            <div class="error-message">กรุณาให้คะแนนส่วนนี้</div>
+          </div>
+        `;
+      });
+      step3Html += `</div>`;
+    }
+    else if (q.type === "score10") {
+      const valLabel = q.id.replace('Q', 'val-q');
+      step3Html += `
+        <label class="form-label">${q.text} ${q.required ? '<span style="color:var(--danger)">*</span>' : ""}</label>
+        <div class="slider-wrapper">
+          <input type="range" name="${q.id}" min="1" max="10" value="10" class="custom-slider">
+          <div class="slider-value-display">
+            คะแนนที่ให้: <span id="${valLabel}" class="slider-val" style="font-weight:700; color:var(--accent)">10</span> / 10
+          </div>
+        </div>
+      `;
+    }
+    else if (q.type === "text") {
+      step3Html += `
+        <label class="form-label">${q.text}</label>
+        <textarea name="${q.id}" rows="3" class="form-control" placeholder="พิมพ์คำตอบที่นี่..."></textarea>
+      `;
+    }
+    else if (q.type === "multi-select") {
+      step3Html += `<label class="form-label">${q.text} ${q.required ? '<span style="color:var(--danger)">*</span>' : ""}</label>`;
+      step3Html += `<div class="checkbox-grid-channels">`;
+      q.choices.forEach(choice => {
+        step3Html += `
+          <label class="custom-checkbox">
+            <input type="checkbox" name="${q.id}_List" value="${choice}">
+            <span class="checkbox-box"></span>
+            <span class="checkbox-text">${choice}</span>
+          </label>
+        `;
+      });
+      step3Html += `</div>`;
+      
+      if (q.hasOther) {
+        step3Html += `
+          <div class="div-other hidden" id="div-${q.id}-other" style="margin-top:8px;">
+            <input type="text" name="${q.id}_Other" class="form-control" placeholder="โปรดระบุรายละเอียด...">
+          </div>
+        `;
+      }
+    }
+    
+    step3Html += `<div class="error-message">กรุณากรอกข้อมูลในข้อนี้ให้ถูกต้อง</div>`;
+    step3Html += `</div>`;
+  });
+  
+  step3.innerHTML = step3Html;
+  
+  setupRankingSortable();
+  
+  // Bind slider display update
+  step3.querySelectorAll('.custom-slider').forEach(slider => {
+    slider.addEventListener('input', (e) => {
+      const name = e.target.getAttribute('name');
+      const valLabel = name.replace('Q', 'val-q');
+      const valEl = document.getElementById(valLabel);
+      if (valEl) valEl.innerText = e.target.value;
+    });
+  });
+  
+  // Bind other specify checkboxes in step 3
+  step3Questions.forEach(q => {
+    if (q.hasOther) {
+      const checkboxes = step3.querySelectorAll(`input[name="${q.id}_List"]`);
+      checkboxes.forEach(c => {
+        c.addEventListener('change', () => {
+          const checked = Array.from(step3.querySelectorAll(`input[name="${q.id}_List"]:checked`)).map(el => el.value);
+          document.getElementById(`div-${q.id}-other`).classList.toggle('hidden', !checked.includes("อื่น ๆ"));
+        });
+      });
+    }
+  });
+}
+
+function generateYearsCheckboxes() {
+  const yearsWrapper = document.getElementById('attendance-years-wrapper');
+  if (!yearsWrapper) return;
+  const container = yearsWrapper.querySelector('.checkbox-grid');
+  if (!container) return;
+  
+  let html = '';
+  for (let year = 2554; year <= 2567; year++) {
+    if (year === 2564) continue;
+    html += `
+      <label class="custom-checkbox">
+        <input type="checkbox" name="Attend_Year_Item" value="${year}">
+        <span class="checkbox-box"></span>
+        <span class="checkbox-text">ปี ${year}</span>
+      </label>
+    `;
+  }
+  container.innerHTML = html;
+
+  container.querySelectorAll('input').forEach(chk => {
+    chk.addEventListener('change', () => {
+      const checkedVals = Array.from(container.querySelectorAll('input:checked')).map(el => el.value);
+      document.getElementById('input-attend-years').value = checkedVals.join(", ");
+    });
+  });
+}
+
+// Q27 DRAG-AND-DROP OR CLICK-TO-SORT
+function setupRankingSortable() {
+  const list = document.getElementById('sortable-activities');
+  if (!list) return;
+  let draggingItem = null;
+
+  list.querySelectorAll('.ranking-item').forEach(item => {
+    item.addEventListener('dragstart', () => {
+      draggingItem = item;
+      item.classList.add('dragging');
+    });
+
+    item.addEventListener('dragend', () => {
+      draggingItem = null;
+      item.classList.remove('dragging');
+      updateRankingValues();
+    });
+  });
+
+  list.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    const afterElement = getDragAfterElement(list, e.clientY);
+    if (afterElement == null) {
+      list.appendChild(draggingItem);
+    } else {
+      list.insertBefore(draggingItem, afterElement);
+    }
+  });
+
+  list.querySelectorAll('.ranking-item').forEach(item => {
+    item.addEventListener('click', () => {
+      const prev = item.previousElementSibling;
+      if (prev) {
+        list.insertBefore(item, prev);
+      } else {
+        list.appendChild(item);
+      }
+      updateRankingValues();
+    });
+  });
+  
+  updateRankingValues();
+}
+
+function getDragAfterElement(container, y) {
+  const draggableElements = [...container.querySelectorAll('.ranking-item:not(.dragging)')];
+  
+  return draggableElements.reduce((closest, child) => {
+    const box = child.getBoundingClientRect();
+    const offset = y - box.top - box.height / 2;
+    if (offset < 0 && offset > closest.offset) {
+      return { offset: offset, element: child };
+    } else {
+      return closest;
+    }
+  }, { offset: Number.NEGATIVE_INFINITY }).element;
+}
+
+function updateRankingValues() {
+  const items = [...document.querySelectorAll('#sortable-activities .ranking-item')];
+  items.forEach((item, index) => {
+    const badge = item.querySelector('.rank-badge');
+    if (badge) badge.innerText = index + 1;
+    const input = document.getElementById(`input-Q27-r${index + 1}`);
+    if (input) input.value = item.getAttribute('data-id');
+  });
+}
+
+// ==========================================================
+// GOOGLE SIGN-IN & ADMIN AUTHENTICATION LOGIC
+// ==========================================================
+
+function initAdminAuth() {
+  const logoutBtn = document.getElementById("btn-logout");
+  if (logoutBtn) {
+    const newLogoutBtn = logoutBtn.cloneNode(true);
+    logoutBtn.parentNode.replaceChild(newLogoutBtn, logoutBtn);
+    newLogoutBtn.addEventListener("click", handleLogout);
+  }
+
+  const token = sessionStorage.getItem("admin_token");
+  const email = sessionStorage.getItem("admin_email");
+  
+  if (token && email) {
+    showAdminSession(email);
+    fetchDataSecurely(token);
+  } else {
+    showLoginPane();
+  }
+}
+
+function showAdminSession(email) {
+  const profileHeader = document.getElementById("admin-profile-header");
+  const emailEl = document.getElementById("admin-email");
+  if (profileHeader && emailEl) {
+    emailEl.innerText = email;
+    const avatarEl = profileHeader.querySelector(".admin-avatar");
+    if (avatarEl) {
+      avatarEl.innerText = email.charAt(0).toUpperCase();
+    }
+    profileHeader.classList.remove("hidden");
+  }
+}
+
+function showLoginPane() {
+  const loginPane = document.getElementById("dashboard-login-pane");
+  const dashboardContent = document.getElementById("dashboard-content");
+  const profileHeader = document.getElementById("admin-profile-header");
+  
+  if (loginPane) loginPane.classList.remove("hidden");
+  if (dashboardContent) dashboardContent.classList.add("hidden");
+  if (profileHeader) profileHeader.classList.add("hidden");
+  
+  if (!GOOGLE_CLIENT_ID) {
+    renderMockLogin();
+  } else {
+    renderRealGoogleLogin();
+  }
+}
+
+function renderMockLogin() {
+  const container = document.getElementById("google-login-btn");
+  if (!container) return;
+  
+  container.innerHTML = `
+    <div style="display:flex; flex-direction:column; gap:12px; width:100%; max-width:280px; margin:0 auto;">
+      <input type="email" id="mock-email-input" class="form-control" placeholder="ระบุอีเมลแอดมินเพื่อเข้าระบบทดสอบ" style="text-align:center;">
+      <button type="button" id="btn-mock-login" class="btn-primary" style="justify-content:center; width:100%;">
+        เข้าสู่ระบบด้วยบัญชีจำลอง
+      </button>
+      <span style="font-size:0.75rem; color:var(--text-muted); line-height:1.4;">
+        * โหมดจำลองเนื่องจากไม่ได้ระบุ Client ID *<br/>
+        ลองระบุ: <strong>admin@gmail.com</strong> (มีสิทธิ์)<br/>
+        ลองระบุ: <strong>guest@gmail.com</strong> (ไม่มีสิทธิ์)
+      </span>
+    </div>
+  `;
+  
+  document.getElementById("btn-mock-login").addEventListener("click", () => {
+    const emailInput = document.getElementById("mock-email-input").value.trim().toLowerCase();
+    const errorMsg = document.getElementById("login-error-msg");
+    if (errorMsg) errorMsg.classList.add("hidden");
+    
+    if (mockAdmins.map(e => e.toLowerCase()).includes(emailInput) || emailInput === "admin@gmail.com") {
+      if (!mockAdmins.includes("admin@gmail.com")) mockAdmins.push("admin@gmail.com");
+      
+      sessionStorage.setItem("admin_token", "mock-token-admin");
+      sessionStorage.setItem("admin_email", emailInput);
+      showAdminSession(emailInput);
+      
+      if (document.getElementById("dashboard-login-pane")) {
+        document.getElementById("dashboard-login-pane").classList.add("hidden");
+      }
+      if (document.getElementById("dashboard-content")) {
+        document.getElementById("dashboard-content").classList.remove("hidden");
+      }
+      
+      renderDashboardOverview();
+      loadAdmins();
+    } else if (emailInput === "") {
+      alert("กรุณากรอกอีเมลจำลอง");
+    } else {
+      if (errorMsg) {
+        errorMsg.innerText = `บัญชี ${emailInput} ไม่ได้รับสิทธิ์ผู้ดูแลระบบ`;
+        errorMsg.classList.remove("hidden");
+      }
+    }
+  });
+}
+
+function renderRealGoogleLogin() {
+  const container = document.getElementById("google-login-btn");
+  if (!container) return;
+  
+  container.innerHTML = "";
+  
+  try {
+    google.accounts.id.initialize({
+      client_id: GOOGLE_CLIENT_ID,
+      callback: handleCredentialResponse
+    });
+    google.accounts.id.renderButton(
+      container,
+      { theme: "outline", size: "large", width: 280, text: "signin_with" }
+    );
+  } catch (err) {
+    console.error("Google Login initialization failed:", err);
+    container.innerHTML = `<p style="color:var(--danger); font-size:0.85rem;">ไม่สามารถโหลดปุ่ม Google Sign-In ได้</p>`;
+  }
+}
+
+function handleCredentialResponse(response) {
+  const token = response.credential;
+  sessionStorage.setItem("admin_token", token);
+  fetchDataSecurely(token);
+}
+
+function fetchDataSecurely(token) {
+  const loginPane = document.getElementById("dashboard-login-pane");
+  const dashboardContent = document.getElementById("dashboard-content");
+  const errorMsg = document.getElementById("login-error-msg");
+  
+  if (errorMsg) errorMsg.classList.add("hidden");
+
+  if (!APPS_SCRIPT_URL) {
+    console.log("ไม่มี APPS_SCRIPT_URL: ปลดล็อกแดชบอร์ดด้วยสถิติจำลอง");
+    const email = sessionStorage.getItem("admin_email") || "admin@gmail.com";
+    showAdminSession(email);
+    if (loginPane) loginPane.classList.add("hidden");
+    if (dashboardContent) dashboardContent.classList.remove("hidden");
+    appData = [...MOCK_RESPONSES];
+    renderDashboardOverview();
+    return;
+  }
+
+  if (syncStatusText) {
+    syncStatusText.innerText = "กำลังตรวจสอบสิทธิ์...";
+  }
+  if (syncDot) syncDot.classList.remove('connected');
+
+  fetch(APPS_SCRIPT_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      action: "fetch_data",
+      idToken: token
+    })
+  })
+  .then(res => {
+    if (!res.ok) throw new Error("HTTP error " + res.status);
+    return res.json();
+  })
+  .then(res => {
+    if (res.status === "success") {
+      sessionStorage.setItem("admin_email", res.email);
+      showAdminSession(res.email);
+      
+      appData = res.data;
+      if (loginPane) loginPane.classList.add("hidden");
+      if (dashboardContent) dashboardContent.classList.remove("hidden");
+      
+      if (syncStatusText) {
+        syncStatusText.innerText = "เชื่อมต่อฐานข้อมูลเรียบร้อยแล้ว";
+        syncStatusText.style.color = "var(--success)";
+      }
+      if (syncDot) syncDot.classList.add('connected');
+      
+      renderDashboardOverview();
+    } else if (res.status === "unauthorized") {
+      sessionStorage.clear();
+      showLoginPane();
+      if (errorMsg) {
+        errorMsg.innerText = res.message || "บัญชี Google นี้ไม่ได้รับสิทธิ์ผู้ดูแลระบบ";
+        errorMsg.classList.remove("hidden");
+      }
+      if (syncStatusText) {
+        syncStatusText.innerText = "ไม่มีสิทธิ์เข้าใช้งาน";
+        syncStatusText.style.color = "var(--danger)";
+      }
+    } else {
+      sessionStorage.clear();
+      showLoginPane();
+      alert("ตรวจสอบสิทธิ์แอดมินล้มเหลว: " + res.message);
+    }
+  })
+  .catch(err => {
+    console.error("Auth server connection failed:", err);
+    if (syncStatusText) {
+      syncStatusText.innerText = "เกิดข้อผิดพลาดในการต่อฐานข้อมูล";
+      syncStatusText.style.color = "var(--danger)";
+    }
+    
+    if (token === "mock-token-admin") {
+      appData = [...MOCK_RESPONSES];
+      if (loginPane) loginPane.classList.add("hidden");
+      if (dashboardContent) dashboardContent.classList.remove("hidden");
+      renderDashboardOverview();
+    } else {
+      alert("ไม่สามารถติดต่อกับฐานข้อมูล Google Sheets ได้");
+    }
+  });
+}
+
+function handleLogout() {
+  sessionStorage.removeItem("admin_token");
+  sessionStorage.removeItem("admin_email");
+  showLoginPane();
+  
+  appData = [];
+  if (syncStatusText) {
+    syncStatusText.innerText = "ออกจากระบบเรียบร้อยแล้ว";
+    syncStatusText.style.color = "var(--text-muted)";
+  }
+  if (syncDot) syncDot.classList.remove('connected');
+  
+  if (overviewChartInstance) {
+    overviewChartInstance.destroy();
+    overviewChartInstance = null;
+  }
+  if (window.activeCharts) {
+    Object.keys(window.activeCharts).forEach(qid => {
+      if (window.activeCharts[qid]) {
+        window.activeCharts[qid].destroy();
+      }
+    });
+    window.activeCharts = {};
+  }
+}
+
+// DASHBOARD RENDER LOGIC
+function renderDashboardOverview() {
+  const total = appData.length;
+  document.getElementById('stat-total-responses').innerText = total;
+
+  let sumQ34 = 0; 
+  let sumQ32 = 0; 
+  let sumQ38 = 0; 
+  
+  appData.forEach(row => {
+    sumQ34 += Number(row.Q34 || 0);
+    sumQ32 += Number(row.Q32 || 0);
+    sumQ38 += Number(row.Q38 || 0);
+  });
+
+  const avgQ34 = total > 0 ? (sumQ34 / total).toFixed(2) : "0.00";
+  const avgQ32 = total > 0 ? (sumQ32 / total).toFixed(2) : "0.00";
+  const avgQ38 = total > 0 ? (sumQ38 / total).toFixed(2) : "0.00";
+
+  document.getElementById('stat-avg-satisfaction').innerText = avgQ34;
+  document.getElementById('stat-avg-participation').innerText = avgQ32;
+  document.getElementById('stat-avg-application').innerText = avgQ38;
+
+  // Render question cards dynamically to display averages & mini-charts directly
+  renderDashboardQuestionCards();
+
+  // Part 1 Cards text summary updates
+  updatePart1Summaries();
+
+  // Render overview chart
+  renderOverviewChart();
+}
+
+function renderDashboardQuestionCards() {
+  const container = document.getElementById("dashboard-questions-container");
+  if (!container) return;
+  
+  container.innerHTML = "";
+  
+  const categories = [
+    { key: "General", name: "ส่วนที่ 1: ข้อมูลทั่วไป (General Information)" },
+    { key: "Context", name: "ด้านบริบทเวทีสานพลัง (Context)" },
+    { key: "Input", name: "ด้านปัจจัยนำเข้า (Input)" },
+    { key: "Process", name: "ด้านกระบวนการจัดการ (Process)" },
+    { key: "Output", name: "ด้านผลลัพธ์เวทีฯ (Output/Outcome)" },
+    { key: "Satisfaction", name: "ส่วนที่ 3: ระดับความพึงพอใจและส่วนอื่น ๆ" }
+  ];
+  
+  categories.forEach(cat => {
+    let catQuestions = [];
+    if (cat.key === "General") {
+      catQuestions = currentSchema.filter(q => q.step === 1);
+    } else if (cat.key === "Satisfaction") {
+      catQuestions = currentSchema.filter(q => q.step === 3);
+    } else {
+      catQuestions = currentSchema.filter(q => q.step === 2 && q.section === cat.key);
+    }
+    
+    if (catQuestions.length === 0) return;
+    
+    const block = document.createElement("div");
+    block.className = "category-block";
+    block.style.marginBottom = "32px";
+    
+    const title = document.createElement("div");
+    title.className = "category-title";
+    title.innerText = cat.name;
+    title.style.fontSize = "1.05rem";
+    title.style.fontWeight = "600";
+    title.style.marginBottom = "16px";
+    block.appendChild(title);
+    
+    const grid = document.createElement("div");
+    grid.className = "dashboard-grid";
+    grid.style.marginBottom = "16px";
+    
+    catQuestions.forEach(q => {
+      const card = document.createElement("div");
+      card.className = "chart-card";
+      card.style.display = "flex";
+      card.style.flexDirection = "column";
+      card.style.justifyContent = "space-between";
+      card.style.height = "100%";
+      card.style.minHeight = "400px";
+      card.style.padding = "20px";
+      
+      let avgHtml = "";
+      if (q.type === "likert") {
+        let sum = 0;
+        let count = 0;
+        appData.forEach(row => {
+          const val = Number(row[q.id]);
+          if (val >= 1 && val <= 5) {
+            sum += val;
+            count++;
+          }
+        });
+        const avg = count > 0 ? (sum / count).toFixed(2) : "-";
+        avgHtml = `<span class="q-summary-label val-avg" style="font-size:0.8rem; font-weight:700;">เฉลี่ย ${avg}</span>`;
+      }
+      else if (q.type === "score10") {
+        let sum = 0;
+        let count = 0;
+        appData.forEach(row => {
+          const val = Number(row[q.id]);
+          if (val >= 1 && val <= 10) {
+            sum += val;
+            count++;
+          }
+        });
+        const avg = count > 0 ? (sum / count).toFixed(2) : "-";
+        avgHtml = `<span class="q-summary-label val-avg-10" style="font-size:0.8rem; font-weight:700;">เฉลี่ย ${avg}</span>`;
+      }
+      else if (q.type === "facilities") {
+        let sum = 0;
+        let count = 0;
+        appData.forEach(row => {
+          q.subfields.forEach(sub => {
+            const val = Number(row[sub]);
+            if (val >= 1 && val <= 5) {
+              sum += val;
+              count++;
+            }
+          });
+        });
+        const avg = count > 0 ? (sum / count).toFixed(2) : "-";
+        avgHtml = `<span class="q-summary-label val-avg" style="font-size:0.8rem; font-weight:700;">เฉลี่ย ${avg}</span>`;
+      }
+      else if (q.type === "numeric") {
+        let sum = 0;
+        let count = 0;
+        appData.forEach(row => {
+          const val = Number(row[q.id]);
+          if (row[q.id] !== undefined && !isNaN(val) && row[q.id] !== "") {
+            sum += val;
+            count++;
+          }
+        });
+        const avg = count > 0 ? (sum / count).toFixed(1) : "-";
+        avgHtml = `<span class="q-summary-label val-avg" style="font-size:0.8rem; font-weight:700;">เฉลี่ย ${avg}</span>`;
+      }
+      else {
+        let count = 0;
+        appData.forEach(row => {
+          if (q.type === "ranking") {
+            if (row.Q27_Rank1) count++;
+          } else {
+            if (row[q.id] !== undefined && String(row[q.id]).trim() !== "") count++;
+          }
+        });
+        avgHtml = `<span class="q-summary-label text-count" style="font-size:0.8rem; font-weight:700;">${count} คน</span>`;
+      }
+      
+      let cardHtml = `
+        <div class="chart-header" style="margin-bottom:12px;">
+          <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px;">
+            <div style="flex:1;">
+              <span class="q-num" style="display:inline-block; margin-bottom:4px; font-size:0.75rem; font-weight:700;">${q.id}</span>
+              <h4 style="font-size:0.85rem; font-weight:600; line-height:1.4; color:var(--text-primary); margin:0;">${q.text}</h4>
+            </div>
+            ${avgHtml}
+          </div>
+        </div>
+        <div class="chart-container" style="flex:1; position:relative; min-height:200px; height:200px; margin-bottom:12px;">
+          <canvas id="chart-canvas-${q.id}"></canvas>
+        </div>
+      `;
+      
+      if (q.type === "text" || q.id === "Q29" || q.id === "Q31" || q.id === "Q33" || q.id === "Q35" || q.id === "Q36" || q.id === "Q39") {
+        let commentCount = 0;
+        let commentsRowsHtml = "";
+        let commentIdx = 1;
+        appData.forEach(row => {
+          const comment = row[q.id];
+          if (comment && String(comment).trim() !== "") {
+            commentCount++;
+            commentsRowsHtml += `
+              <tr style="border-bottom:1px solid var(--border-color);">
+                <td style="width:20px; font-weight:bold; color:var(--text-muted); padding:6px 0; vertical-align:top;">${commentIdx++}</td>
+                <td style="padding:6px 0; color:var(--text-primary); line-height:1.4;">${escapeHtml(comment)}</td>
+              </tr>
+            `;
+          }
+        });
+        if (commentsRowsHtml === "") {
+          commentsRowsHtml = `<tr><td style="text-align:center; color:var(--text-muted); padding:8px 0;">ไม่มีข้อคิดเห็น</td></tr>`;
+        }
+        
+        cardHtml += `
+          <div class="comments-section-wrapper" style="margin-top:8px;">
+            <button class="btn-toggle-comments" data-qid="${q.id}" style="width:100%; text-align:left; background:var(--bg-accent); border:1px solid var(--border-color); padding:8px 12px; border-radius:6px; font-size:0.75rem; font-weight:600; display:flex; justify-content:space-between; align-items:center;">
+              <span>💬 ดูข้อคิดเห็นทั้งหมด (${commentCount})</span>
+              <span>▼</span>
+            </button>
+            <div class="comments-list-pane hidden" id="comments-pane-${q.id}" style="max-height:150px; overflow-y:auto; border:1px solid var(--border-color); border-top:none; border-radius:0 0 6px 6px; padding:8px; background:var(--bg-secondary);">
+              <table class="minimal-table" style="font-size:0.75rem; width:100%; border-collapse:collapse;">
+                <tbody>
+                  ${commentsRowsHtml}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        `;
+      }
+      
+      card.innerHTML = cardHtml;
+      grid.appendChild(card);
+    });
+    
+    block.appendChild(grid);
+    container.appendChild(block);
+  });
+  
+  // Initialize Chart.js
+  currentSchema.forEach(q => {
+    createQuestionChart(q, `chart-canvas-${q.id}`);
+  });
+  
+  // Bind toggles for comments
+  document.querySelectorAll(".btn-toggle-comments").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const qid = btn.getAttribute("data-qid");
+      const pane = document.getElementById(`comments-pane-${qid}`);
+      const arrow = btn.querySelector("span:last-child");
+      if (pane) {
+        const isHidden = pane.classList.toggle("hidden");
+        arrow.innerText = isHidden ? "▼" : "▲";
+      }
+    });
+  });
+}
+
+function createQuestionChart(q, canvasId) {
+  if (typeof Chart === 'undefined') {
+    console.warn("Chart.js is not loaded. Skipping chart rendering for " + canvasId);
+    return;
+  }
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  
+  const isDark = document.body.classList.contains('dark-theme');
+  const textColor = isDark ? '#cbd5e1' : '#475569';
+  const gridColor = isDark ? '#1e293b' : '#e2e8f0';
+
+  let chartType = 'bar';
+  let dataLabels = [];
+  let dataValues = [];
+  let colors = 'rgba(15, 118, 110, 0.75)'; 
+  let showLegend = false;
+  let isHorizontal = false;
+
+  const total = appData.length;
+
+  if (q.type === "likert") {
+    const frequencies = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+    appData.forEach(row => {
+      const val = Number(row[q.id]);
+      if (val >= 1 && val <= 5) frequencies[val]++;
+    });
+    dataLabels = ['1', '2', '3', '4', '5'];
+    dataValues = [frequencies[1], frequencies[2], frequencies[3], frequencies[4], frequencies[5]];
+    colors = ['#ef4444', '#f59e0b', '#64748b', '#6366f1', '#0f766e'];
+  } 
+  else if (q.type === "score10") {
+    const frequencies = {};
+    for (let i = 1; i <= 10; i++) frequencies[i] = 0;
+    appData.forEach(row => {
+      const val = Number(row[q.id]);
+      if (val >= 1 && val <= 10) frequencies[val]++;
+    });
+    dataLabels = [];
+    dataValues = [];
+    for (let i = 1; i <= 10; i++) {
+      dataLabels.push(String(i));
+      dataValues.push(frequencies[i]);
+    }
+    colors = 'rgba(99, 102, 241, 0.8)';
+  }
+  else if (q.type === "categorical") {
+    chartType = 'doughnut';
+    showLegend = true;
+    const frequencies = {};
+    appData.forEach(row => {
+      const val = row[q.id];
+      if (val) frequencies[val] = (frequencies[val] || 0) + 1;
+    });
+    dataLabels = Object.keys(frequencies);
+    dataValues = dataLabels.map(l => frequencies[l]);
+    colors = ['#0f766e', '#14b8a6', '#6366f1', '#f59e0b', '#ef4444', '#64748b'];
+  }
+  else if (q.type === "multi-select") {
+    chartType = 'bar';
+    isHorizontal = true;
+    const frequencies = {};
+    appData.forEach(row => {
+      if (row[q.id]) {
+        row[q.id].split(",").forEach(c => {
+          const val = c.trim();
+          if (val) frequencies[val] = (frequencies[val] || 0) + 1;
+        });
+      }
+    });
+    dataLabels = Object.keys(frequencies).sort((a,b) => frequencies[b] - frequencies[a]);
+    dataValues = dataLabels.map(l => frequencies[l]);
+    colors = 'rgba(16, 185, 129, 0.75)';
+  }
+  else if (q.type === "numeric") {
+    const frequencies = {};
+    appData.forEach(row => {
+      const val = row[q.id];
+      if (val !== undefined && val !== "") {
+        frequencies[val] = (frequencies[val] || 0) + 1;
+      }
+    });
+    dataLabels = Object.keys(frequencies).sort((a,b) => Number(a) - Number(b));
+    dataValues = dataLabels.map(l => frequencies[l]);
+    colors = 'rgba(244, 63, 94, 0.75)';
+  }
+  else if (q.type === "ranking") {
+    chartType = 'bar';
+    isHorizontal = true;
+    const scores = {};
+    appData.forEach(row => {
+      if (row[`${q.id}_Rank1`]) scores[row[`${q.id}_Rank1`]] = (scores[row[`${q.id}_Rank1`]] || 0) + 4;
+      if (row[`${q.id}_Rank2`]) scores[row[`${q.id}_Rank2`]] = (scores[row[`${q.id}_Rank2`]] || 0) + 3;
+      if (row[`${q.id}_Rank3`]) scores[row[`${q.id}_Rank3`]] = (scores[row[`${q.id}_Rank3`]] || 0) + 2;
+      if (row[`${q.id}_Rank4`]) scores[row[`${q.id}_Rank4`]] = (scores[row[`${q.id}_Rank4`]] || 0) + 1;
+    });
+    dataLabels = Object.keys(scores).sort((a,b) => scores[b] - scores[a]);
+    dataValues = dataLabels.map(l => scores[l]);
+    colors = ['#0f766e', '#14b8a6', '#6366f1', '#a855f7'];
+  }
+  else if (q.type === "facilities") {
+    chartType = 'bar';
+    isHorizontal = true;
+    const subfields = q.subfields;
+    const subnames = q.sublabels || subfields;
+    dataLabels = subnames;
+    dataValues = [];
+    subfields.forEach(field => {
+      let sum = 0;
+      let count = 0;
+      appData.forEach(row => {
+        const val = Number(row[field]);
+        if (val >= 1 && val <= 5) {
+          sum += val;
+          count++;
+        }
+      });
+      dataValues.push(count > 0 ? (sum / count) : 0);
+    });
+    colors = 'rgba(15, 118, 110, 0.75)';
+  }
+  else if (q.type === "text") {
+    chartType = 'doughnut';
+    showLegend = true;
+    let count = 0;
+    appData.forEach(row => {
+      if (row[q.id] && String(row[q.id]).trim() !== "") count++;
+    });
+    dataLabels = ["ระบุข้อคิดเห็น", "ไม่ได้ระบุ"];
+    dataValues = [count, total - count];
+    colors = ['#0f766e', '#e2e8f0'];
+  }
+
+  const chartData = {
+    labels: dataLabels,
+    datasets: [{
+      label: q.type === "ranking" ? "คะแนนถ่วงน้ำหนัก" : (q.type === "facilities" ? "คะแนนเฉลี่ย (เต็ม 5)" : "จำนวนคน (คน)"),
+      data: dataValues,
+      backgroundColor: colors,
+      borderWidth: 0,
+      borderRadius: chartType === 'doughnut' ? 0 : 4,
+      barThickness: dataLabels.length > 5 ? 12 : 24
+    }]
+  };
+
+  const options = {
+    responsive: true,
+    maintainAspectRatio: false,
+    indexAxis: isHorizontal ? 'y' : 'x',
+    plugins: {
+      legend: { 
+        display: showLegend,
+        position: 'bottom',
+        labels: { color: textColor, font: { family: 'Sarabun', size: 10 } }
+      },
+      tooltip: { padding: 8, fontFamily: 'Sarabun' }
+    }
+  };
+
+  if (chartType !== 'doughnut') {
+    options.scales = {
+      x: {
+        grid: { display: false },
+        ticks: { color: textColor, font: { family: 'Sarabun', size: 10 } }
+      },
+      y: {
+        beginAtZero: true,
+        grid: { color: gridColor },
+        ticks: { color: textColor, font: { family: 'Sarabun', size: 10 } }
+      }
+    };
+    if (isHorizontal) {
+      options.scales.x.beginAtZero = true;
+    }
+  }
+
+  if (window.activeCharts[q.id]) {
+    window.activeCharts[q.id].destroy();
+  }
+  
+  window.activeCharts[q.id] = new Chart(ctx, {
+    type: chartType,
+    data: chartData,
+    options: options
+  });
+}
+
+function updatePart1Summaries() {
+  const total = appData.length;
+  if (total === 0) return;
+
+  const genderCounts = { "ชาย": 0, "หญิง": 0, "เพศทางเลือก": 0 };
+  let sumAge = 0;
+  let validAgeCount = 0;
+  const roleCounts = {};
+  let totalAttendances = 0;
+
+  appData.forEach(row => {
+    if (row.Gender && genderCounts[row.Gender] !== undefined) {
+      genderCounts[row.Gender]++;
+    }
+    if (row.Age && !isNaN(row.Age)) {
+      sumAge += Number(row.Age);
+      validAgeCount++;
+    }
+    if (row.Respondent_Type) {
+      roleCounts[row.Respondent_Type] = (roleCounts[row.Respondent_Type] || 0) + 1;
+    }
+    if (row.Attendance_Count && !isNaN(row.Attendance_Count)) {
+      totalAttendances += Number(row.Attendance_Count);
+    }
+  });
+
+  let dominantGender = "ชาย";
+  if (genderCounts["หญิง"] > genderCounts[dominantGender]) dominantGender = "หญิง";
+  if (genderCounts["เพศทางเลือก"] > genderCounts[dominantGender]) dominantGender = "เพศทางเลือก";
+  const genderPct = ((genderCounts[dominantGender] / total) * 100).toFixed(0);
+  
+  const elGender = document.getElementById('card-gender-summary');
+  if (elGender) elGender.innerText = `${dominantGender} (${genderPct}%)`;
+
+  const avgAge = validAgeCount > 0 ? (sumAge / validAgeCount).toFixed(1) : "-";
+  const elAge = document.getElementById('card-age-summary');
+  if (elAge) elAge.innerText = `${avgAge} ปี`;
+
+  const participantCount = roleCounts["กลุ่มเข้าร่วมงาน"] || 0;
+  const rolePct = ((participantCount / total) * 100).toFixed(0);
+  const elType = document.getElementById('card-type-summary');
+  if (elType) elType.innerText = `ผู้ร่วมงาน (${rolePct}%)`;
+
+  const avgAttend = (totalAttendances / total).toFixed(1);
+  const elCount = document.getElementById('card-attendance-summary');
+  if (elCount) elCount.innerText = `เฉลี่ย ${avgAttend} ครั้ง`;
+
+  const channelCounts = {};
+  appData.forEach(row => {
+    if (row.Info_Channels) {
+      row.Info_Channels.split(",").forEach(c => {
+        const key = c.trim();
+        if (key) channelCounts[key] = (channelCounts[key] || 0) + 1;
+      });
+    }
+  });
+  let topChannel = "-";
+  let topCount = 0;
+  Object.keys(channelCounts).forEach(k => {
+    if (channelCounts[k] > topCount) {
+      topChannel = k;
+      topCount = channelCounts[k];
+    }
+  });
+  const chanPct = total > 0 ? ((topCount / total) * 100).toFixed(0) : 0;
+  const elChan = document.getElementById('card-channels-summary');
+  if (elChan) elChan.innerText = `${topChannel} (${chanPct}%)`;
+
+  const primaryCounts = {};
+  appData.forEach(row => {
+    if (row.Primary_Channel) {
+      const key = row.Primary_Channel.trim();
+      if (key) primaryCounts[key] = (primaryCounts[key] || 0) + 1;
+    }
+  });
+  let topPrim = "-";
+  let topPCount = 0;
+  Object.keys(primaryCounts).forEach(k => {
+    if (primaryCounts[k] > topPCount) {
+      topPrim = k;
+      topPCount = primaryCounts[k];
+    }
+  });
+  const primPct = total > 0 ? ((topPCount / total) * 100).toFixed(0) : 0;
+  const elPrim = document.getElementById('card-primary-channel-summary');
+  if (elPrim) elPrim.innerText = `${topPrim} (${primPct}%)`;
+}
+
+// CHART DESIGN (Chart.js Configs)
+function renderOverviewChart() {
+  if (typeof Chart === 'undefined') {
+    console.warn("Chart.js is not loaded. Skipping overview chart rendering.");
+    return;
+  }
+  const isDark = document.body.classList.contains('dark-theme');
+  const textColor = isDark ? '#cbd5e1' : '#475569';
+  const gridColor = isDark ? '#1e293b' : '#e2e8f0';
+  
+  const contextQ = currentSchema.filter(q => q.step === 2 && q.section === "Context" && q.type === "likert").map(q => q.id);
+  const inputQ = currentSchema.filter(q => q.step === 2 && q.section === "Input" && q.type === "likert").map(q => q.id);
+  const processQ = currentSchema.filter(q => q.step === 2 && q.section === "Process" && q.type === "likert").map(q => q.id);
+  const outputQ = currentSchema.filter(q => q.step === 2 && q.section === "Output" && q.type === "likert").map(q => q.id);
+
+  function getGroupAvg(qList) {
+    let sum = 0;
+    let count = 0;
+    appData.forEach(row => {
+      qList.forEach(q => {
+        const val = Number(row[q]);
+        if (val >= 1 && val <= 5) {
+          sum += val;
+          count++;
+        }
+      });
+    });
+    return count > 0 ? (sum / count) : 0;
+  }
+
+  const dataset = [
+    getGroupAvg(contextQ),
+    getGroupAvg(inputQ),
+    getGroupAvg(processQ),
+    getGroupAvg(outputQ)
+  ];
+
+  if (overviewChartInstance) {
+    overviewChartInstance.destroy();
+  }
+
+  const canvas = document.getElementById('chart-dimensions-overview');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  
+  overviewChartInstance = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: [
+        'ด้านบริบท (Context)', 
+        'ด้านปัจจัยนำเข้า (Input)', 
+        'ด้านกระบวนการ (Process)', 
+        'ด้านผลสัมฤทธิ์ (Output)'
+      ],
+      datasets: [{
+        label: 'คะแนนความพึงพอใจเฉลี่ย',
+        data: dataset,
+        backgroundColor: [
+          'rgba(15, 118, 110, 0.75)',  
+          'rgba(99, 102, 241, 0.75)',  
+          'rgba(16, 185, 129, 0.75)',  
+          'rgba(244, 63, 94, 0.75)'    
+        ],
+        borderWidth: 0,
+        borderRadius: 6,
+        barThickness: 40
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          padding: 12,
+          fontFamily: 'Sarabun',
+          callbacks: {
+            label: function(context) {
+              return ` คะแนนเฉลี่ย: ${context.parsed.y.toFixed(2)} / 5.00`;
+            }
+          }
+        }
+      },
+      scales: {
+        x: {
+          grid: { display: false },
+          ticks: { color: textColor, font: { family: 'Sarabun', size: 12 } }
+        },
+        y: {
+          min: 0,
+          max: 5,
+          grid: { color: gridColor },
+          ticks: { color: textColor, font: { family: 'Sarabun' }, stepSize: 1 }
+        }
+      }
+    }
+  });
+}
+
+// FORM SUBMISSION LOGIC
+function submitFormAnswers() {
+  const form = document.getElementById('evaluation-form');
+  const overlay = document.getElementById('submitting-overlay');
+  if (overlay) overlay.classList.remove('hidden');
+
+  const payload = {};
+  
+  payload.Timestamp = new Date().toISOString();
+  payload.Consent = form.querySelector('input[name="Consent"]:checked')?.value || "ยินยอม";
+
+  currentSchema.forEach(q => {
+    if (q.type === "categorical") {
+      const val = form.querySelector(`input[name="${q.id}"]:checked`)?.value || "";
+      payload[q.id] = val;
+      if (q.hasOther) {
+        payload[q.id + "_Other"] = val === "อื่น ๆ" ? (form.querySelector(`input[name="${q.id}_Other"]`)?.value || "") : "";
+      }
+    }
+    else if (q.type === "multi-select") {
+      const selected = Array.from(form.querySelectorAll(`input[name="${q.id}_List"]:checked`)).map(el => el.value);
+      payload[q.id] = selected.join(", ");
+      if (q.hasOther) {
+        payload[q.id + "_Other"] = selected.includes("อื่น ๆ") ? (form.querySelector(`input[name="${q.id}_Other"]`)?.value || "") : "";
+      }
+    }
+    else if (q.type === "numeric" || q.type === "score10" || q.type === "likert") {
+      const input = form.querySelector(`[name="${q.id}"]`);
+      if (input) {
+        if (input.type === "radio") {
+          payload[q.id] = Number(form.querySelector(`input[name="${q.id}"]:checked`)?.value || 0);
+        } else {
+          payload[q.id] = Number(input.value || 0);
+        }
+      }
+    }
+    else if (q.type === "text") {
+      payload[q.id] = form.querySelector(`input[name="${q.id}"], textarea[name="${q.id}"]`)?.value || "";
+    }
+    else if (q.type === "years-checkbox") {
+      payload.Attendance_Years = document.getElementById("input-attend-years")?.value || "";
+    }
+    else if (q.type === "ranking") {
+      q.choices.forEach((choice, idx) => {
+        payload[`${q.id}_Rank${idx + 1}`] = document.getElementById(`input-${q.id}-r${idx + 1}`)?.value || "";
+      });
+    }
+    else if (q.type === "facilities") {
+      q.subfields.forEach(sub => {
+        payload[sub] = Number(form.querySelector(`input[name="${sub}"]:checked`)?.value || 0);
+      });
+    }
+  });
+
+  console.log("Submitting survey payload:", payload);
+
+  if (!APPS_SCRIPT_URL) {
+    setTimeout(() => {
+      if (overlay) overlay.classList.add('hidden');
+      appData.push(payload);
+      localStorage.setItem('survey_completed', 'true');
+      setCookie('survey_completed', 'true', 365);
+      
+      document.getElementById('thankyou-pane').classList.remove('hidden');
+      form.classList.add('hidden');
+    }, 1500);
+    return;
+  }
+
+  fetch(APPS_SCRIPT_URL, {
+    method: "POST",
+    mode: "no-cors", 
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(payload)
+  })
+  .then(() => {
+    if (overlay) overlay.classList.add('hidden');
+    localStorage.setItem('survey_completed', 'true');
+    setCookie('survey_completed', 'true', 365);
+    appData.push(payload);
+    
+    document.getElementById('thankyou-pane').classList.remove('hidden');
+    form.classList.add('hidden');
+  })
+  .catch(err => {
+    console.error("Submission failed:", err);
+    if (overlay) overlay.classList.add('hidden');
+    alert("การส่งคำตอบล้มเหลว กรุณาตรวจสอบอินเทอร์เน็ตของท่านและลองส่งอีกครั้งครับ");
+  });
+}
+
+// Bind close button on Thank you pane
+document.getElementById('btn-thankyou-close').addEventListener('click', () => {
+  document.getElementById('evaluation-form').reset();
+  document.getElementById('evaluation-form').classList.remove('hidden');
+  document.getElementById('thankyou-pane').classList.add('hidden');
+  showView('dashboard');
+});
+
+// ==========================================================
+// ADMIN DASHBOARD TAB CONTROL & SECTIONS LOGIC
+// ==========================================================
+
+function setupAdminTabs() {
+  const tabs = document.querySelectorAll(".admin-tab-btn");
+  tabs.forEach(tab => {
+    tab.addEventListener("click", () => {
+      tabs.forEach(t => t.classList.remove("active"));
+      document.querySelectorAll(".admin-tab-pane").forEach(pane => pane.classList.remove("active"));
+      
+      tab.classList.add("active");
+      const targetId = tab.getAttribute("data-target");
+      const targetPane = document.getElementById(targetId);
+      if (targetPane) {
+        targetPane.classList.add("active");
+        if (targetId === "admin-tab-users") {
+          loadAdmins();
+        } else if (targetId === "admin-tab-builder") {
+          renderBuilder();
+        } else if (targetId === "admin-tab-settings") {
+          initSettingsTab();
+        }
+      }
+    });
+  });
+}
+
+// USER MANAGEMENT (Admins)
+function loadAdmins() {
+  const tbody = document.getElementById("admin-users-list-tbody");
+  if (!tbody) return;
+  tbody.innerHTML = `<tr><td colspan="3" style="text-align:center;">กำลังโหลดรายชื่อ...</td></tr>`;
+
+  if (!APPS_SCRIPT_URL) {
+    renderAdminsTable(mockAdmins);
+    return;
+  }
+
+  const token = sessionStorage.getItem("admin_token");
+  fetch(APPS_SCRIPT_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      action: "fetch_admins",
+      idToken: token
+    })
+  })
+  .then(res => res.json())
+  .then(res => {
+    if (res.status === "success") {
+      renderAdminsTable(res.admins);
+    } else {
+      tbody.innerHTML = `<tr><td colspan="3" style="text-align:center; color:var(--danger)">ไม่สามารถโหลดข้อมูลได้: ${res.message}</td></tr>`;
+    }
+  })
+  .catch(err => {
+    console.error("Fetch admins error:", err);
+    tbody.innerHTML = `<tr><td colspan="3" style="text-align:center; color:var(--danger)">เกิดข้อผิดพลาดในการต่อเซิร์ฟเวอร์</td></tr>`;
+  });
+}
+
+function renderAdminsTable(adminsList) {
+  const tbody = document.getElementById("admin-users-list-tbody");
+  if (!tbody) return;
+  tbody.innerHTML = "";
+  
+  if (adminsList.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="3" style="text-align:center;">ไม่มีรายชื่อผู้ดูแลระบบในคลาวด์</td></tr>`;
+    return;
+  }
+  
+  const currentEmail = sessionStorage.getItem("admin_email") || "admin@gmail.com";
+  
+  adminsList.forEach((email, index) => {
+    const tr = document.createElement("tr");
+    const isCurrent = email.trim().toLowerCase() === currentEmail.trim().toLowerCase();
+    
+    tr.innerHTML = `
+      <td>${index + 1}</td>
+      <td>${escapeHtml(email)} ${isCurrent ? '<span style="font-size:0.75rem; color:var(--accent); font-weight:600;">(คุณ)</span>' : ''}</td>
+      <td style="text-align:center;">
+        <button type="button" class="btn-delete-admin" data-email="${email}" ${isCurrent ? 'disabled style="opacity:0.4; cursor:not-allowed;"' : ''} style="background:none; border:none; color:var(--danger); cursor:pointer;">
+          เพิกถอน
+        </button>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+  
+  tbody.querySelectorAll(".btn-delete-admin").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const email = btn.getAttribute("data-email");
+      if (confirm(`คุณต้องการถอนสิทธิ์ผู้ดูแลระบบของ ${email} ใช่หรือไม่?`)) {
+        deleteAdmin(email);
+      }
+    });
+  });
+}
+
+function addAdmin(newEmail) {
+  if (!newEmail || newEmail.indexOf("@") === -1) {
+    alert("กรุณากรอกอีเมลแอดมินในรูปแบบที่ถูกต้อง");
+    return;
+  }
+  
+  const token = sessionStorage.getItem("admin_token");
+  
+  if (!APPS_SCRIPT_URL) {
+    if (mockAdmins.map(e => e.toLowerCase()).includes(newEmail.toLowerCase())) {
+      alert("อีเมลนี้ได้รับสิทธิ์แอดมินอยู่แล้ว");
+    } else {
+      mockAdmins.push(newEmail);
+      alert("เพิ่มสิทธิ์แอดมินจำลองสำเร็จแล้ว");
+      loadAdmins();
+    }
+    const input = document.getElementById("input-new-admin-email");
+    if (input) input.value = "";
+    return;
+  }
+  
+  const overlay = document.getElementById("submitting-overlay");
+  if (overlay) overlay.classList.remove("hidden");
+  
+  fetch(APPS_SCRIPT_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      action: "add_admin",
+      idToken: token,
+      newEmail: newEmail
+    })
+  })
+  .then(res => res.json())
+  .then(res => {
+    if (overlay) overlay.classList.add("hidden");
+    if (res.status === "success") {
+      alert("มอบสิทธิ์ผู้ดูแลระบบเรียบร้อยแล้ว");
+      const input = document.getElementById("input-new-admin-email");
+      if (input) input.value = "";
+      loadAdmins();
+    } else if (res.status === "exists") {
+      alert("อีเมลนี้มีสิทธิ์แอดมินอยู่แล้ว");
+    } else {
+      alert("เกิดข้อผิดพลาด: " + res.message);
+    }
+  })
+  .catch(err => {
+    if (overlay) overlay.classList.add("hidden");
+    console.error("Add admin error:", err);
+    alert("ไม่สามารถติดต่อฐานข้อมูลเพื่อเพิ่มผู้ดูแลระบบได้");
+  });
+}
+
+function deleteAdmin(deleteEmail) {
+  const token = sessionStorage.getItem("admin_token");
+  
+  if (!APPS_SCRIPT_URL) {
+    mockAdmins = mockAdmins.filter(e => e.toLowerCase() !== deleteEmail.toLowerCase());
+    alert("เพิกถอนสิทธิ์สำเร็จ");
+    loadAdmins();
+    return;
+  }
+  
+  const overlay = document.getElementById("submitting-overlay");
+  if (overlay) overlay.classList.remove("hidden");
+  
+  fetch(APPS_SCRIPT_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      action: "delete_admin",
+      idToken: token,
+      deleteEmail: deleteEmail
+    })
+  })
+  .then(res => res.json())
+  .then(res => {
+    if (overlay) overlay.classList.add("hidden");
+    if (res.status === "success") {
+      alert("ถอนสิทธิ์ผู้ดูแลระบบสำเร็จแล้ว");
+      loadAdmins();
+    } else {
+      alert("เกิดข้อผิดพลาด: " + res.message);
+    }
+  })
+  .catch(err => {
+    if (overlay) overlay.classList.add("hidden");
+    console.error("Delete admin error:", err);
+    alert("ไม่สามารถลบสิทธิ์แอดมินจากหลังบ้านได้");
+  });
+}
+
+// SETTINGS & QR GENERATOR
+function initSettingsTab() {
+  document.getElementById("input-set-title").value = currentSettings.surveyName || "";
+  document.getElementById("input-set-start").value = currentSettings.startTime || "";
+  document.getElementById("input-set-end").value = currentSettings.endTime || "";
+  document.getElementById("input-set-active").checked = currentSettings.isActive;
+  
+  const currentUrl = window.location.origin + window.location.pathname;
+  const linkEl = document.getElementById("qr-url-link");
+  if (linkEl) {
+    linkEl.href = currentUrl;
+    linkEl.innerText = currentUrl;
+  }
+  
+  const qrImg = document.getElementById("qr-code-img");
+  if (qrImg) {
+    qrImg.src = "https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=" + encodeURIComponent(currentUrl);
+  }
+}
+
+function handleSettingsSubmit(e) {
+  e.preventDefault();
+  
+  const surveyName = document.getElementById("input-set-title").value.trim();
+  const startTime = document.getElementById("input-set-start").value;
+  const endTime = document.getElementById("input-set-end").value;
+  const isActive = document.getElementById("input-set-active").checked;
+  
+  const settingsData = { surveyName, startTime, endTime, isActive };
+  const token = sessionStorage.getItem("admin_token");
+  
+  if (!APPS_SCRIPT_URL) {
+    currentSettings = settingsData;
+    localStorage.setItem("survey_settings", JSON.stringify(settingsData));
+    applySettings();
+    checkSurveyStatus();
+    alert("บันทึกการตั้งค่าระบบเรียบร้อย (โหมดบันทึกจำลองแบบท้องถิ่น)");
+    return;
+  }
+  
+  const overlay = document.getElementById("submitting-overlay");
+  if (overlay) overlay.classList.remove("hidden");
+  
+  fetch(APPS_SCRIPT_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      action: "save_settings",
+      idToken: token,
+      settingsData: settingsData
+    })
+  })
+  .then(res => res.json())
+  .then(res => {
+    if (overlay) overlay.classList.add("hidden");
+    if (res.status === "success") {
+      currentSettings = settingsData;
+      applySettings();
+      checkSurveyStatus();
+      alert("บันทึกข้อมูลและปรับปรุงการตั้งค่าในชีตสำเร็จ!");
+    } else {
+      alert("บันทึกการตั้งค่าล้มเหลว: " + res.message);
+    }
+  })
+  .catch(err => {
+    if (overlay) overlay.classList.add("hidden");
+    console.error("Save settings error:", err);
+    alert("ไม่สามารถติดต่อคลาวด์เพื่อบันทึกวันเวลาเปิดปิดได้");
+  });
+}
+
+function downloadQRCode() {
+  const currentUrl = window.location.origin + window.location.pathname;
+  const qrUrl = "https://api.qrserver.com/v1/create-qr-code/?size=350x350&data=" + encodeURIComponent(currentUrl);
+  
+  const overlay = document.getElementById("submitting-overlay");
+  if (overlay) overlay.classList.remove("hidden");
+  
+  fetch(qrUrl)
+    .then(response => {
+      if (!response.ok) throw new Error("QR Load error");
+      return response.blob();
+    })
+    .then(blob => {
+      if (overlay) overlay.classList.add("hidden");
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = blobUrl;
+      a.download = "survey-qrcode.png";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(blobUrl);
+    })
+    .catch(err => {
+      if (overlay) overlay.classList.add("hidden");
+      console.error("QR download fail:", err);
+      alert("ดาวน์โหลดภาพล้มเหลว กรุณาคลิกขวาที่ภาพคิวอาร์โค้ดแล้วกดเลือก Save Image As... ครับ");
+    });
+}
+
+// FORM BUILDER (Questionnaire Editor)
+function renderBuilder() {
+  const list1 = document.getElementById("builder-part1-list");
+  const list2 = document.getElementById("builder-part2-list");
+  const list3 = document.getElementById("builder-part3-list");
+  
+  if (!list1 || !list2 || !list3) return;
+  
+  list1.innerHTML = "";
+  list2.innerHTML = "";
+  list3.innerHTML = "";
+  
+  currentSchema.forEach(q => {
+    const card = document.createElement("div");
+    card.className = "builder-question-card";
+    card.setAttribute("data-qid", q.id);
+    
+    let headerHtml = `
+      <div class="builder-card-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; border-bottom:1px dashed var(--border-color); padding-bottom:8px;">
+        <span class="builder-qid-badge" style="font-weight:700; background-color:var(--bg-accent); padding:2px 8px; border-radius:4px; font-family:var(--font-code); font-size:0.8rem; color:var(--text-secondary);">${q.id}</span>
+    `;
+    
+    const isCoreP1 = ["Gender", "Age", "Network_Number", "Respondent_Type", "Attendance_Count", "Attendance_Years", "Info_Channels", "Primary_Channel"].includes(q.id);
+    const isCoreP3 = ["Q27", "Q28", "Q29", "Q30", "Q31", "Q32", "Q33", "Q34", "Q35", "Q36", "Q37", "Q38", "Q39"].includes(q.id);
+    
+    if (!isCoreP1 && !isCoreP3) {
+      headerHtml += `
+        <button type="button" class="btn-delete-question" data-qid="${q.id}" style="background:none; border:none; color:var(--danger); cursor:pointer; font-size:1.0rem;" title="ลบคำถาม">🗑️ ลบข้อนี้</button>
+      `;
+    }
+    headerHtml += `</div>`;
+    
+    let bodyHtml = `
+      <div class="form-group">
+        <label class="form-label" style="font-weight:600;">หัวข้อข้อความคำถาม</label>
+        <input type="text" class="form-control builder-input-text" data-prop="text" value="${escapeHtml(q.text)}">
+      </div>
+    `;
+    
+    if (q.type === "categorical" || q.type === "multi-select" || q.id === "Q27" || q.id === "Q37") {
+      const choicesStr = q.choices ? q.choices.join(", ") : "";
+      bodyHtml += `
+        <div class="form-group mt-2">
+          <label class="form-label" style="font-weight:600;">ตัวเลือกคำตอบ (คั่นด้วยเครื่องหมายจุลภาค ,)</label>
+          <input type="text" class="form-control builder-input-choices" data-prop="choices" value="${escapeHtml(choicesStr)}">
+        </div>
+      `;
+    }
+    
+    if (q.type === "likert" && q.step === 2) {
+      bodyHtml += `
+        <div class="form-group mt-2">
+          <label class="form-label" style="font-weight:600;">หัวข้อย่อยด้านการประเมิน (Section)</label>
+          <select class="form-control builder-input-section" data-prop="section" style="width:100%;">
+            <option value="Context" ${q.section === "Context" ? "selected" : ""}>ด้านบริบท (Context)</option>
+            <option value="Input" ${q.section === "Input" ? "selected" : ""}>ด้านปัจจัยนำเข้า (Input)</option>
+            <option value="Process" ${q.section === "Process" ? "selected" : ""}>ด้านกระบวนการ (Process)</option>
+            <option value="Output" ${q.section === "Output" ? "selected" : ""}>ด้านผลสัมฤทธิ์ (Output)</option>
+          </select>
+        </div>
+      `;
+    }
+    
+    if (q.type === "facilities") {
+      bodyHtml += `<div class="form-group mt-2"><label class="form-label" style="font-weight:600;">หัวข้อย่อยการจัดสิ่งอำนวยความสะดวก</label>`;
+      q.subfields.forEach((sub, idx) => {
+        const sublabel = q.sublabels ? q.sublabels[idx] : sub;
+        bodyHtml += `
+          <div style="display:flex; gap:8px; align-items:center; margin-bottom:6px;">
+            <span style="font-size:0.8rem; font-weight:600; width:60px;">หัวข้อ ${idx+1}:</span>
+            <input type="text" class="form-control builder-input-sublabel" data-subidx="${idx}" value="${escapeHtml(sublabel)}" style="flex:1;">
+          </div>
+        `;
+      });
+      bodyHtml += `</div>`;
+    }
+    
+    if (!isCoreP1 && q.step === 1) {
+      bodyHtml += `
+        <div class="form-group mt-2">
+          <label class="form-label" style="font-weight:600;">ประเภทฟิลด์รับคำตอบ</label>
+          <select class="form-control builder-input-type" data-prop="type" style="width:100%;">
+            <option value="text" ${q.type === "text" ? "selected" : ""}>กล่องพิมพ์คำตอบ (Text)</option>
+            <option value="numeric" ${q.type === "numeric" ? "selected" : ""}>กล่องกรอกเลข (Numeric)</option>
+            <option value="categorical" ${q.type === "categorical" ? "selected" : ""}>เลือกตอบหนึ่งข้อ (Radio Button)</option>
+            <option value="multi-select" ${q.type === "multi-select" ? "selected" : ""}>เลือกตอบหลายข้อ (Checkbox)</option>
+          </select>
+        </div>
+      `;
+    }
+    
+    card.innerHTML = headerHtml + bodyHtml;
+    
+    if (q.step === 1) {
+      list1.appendChild(card);
+    } else if (q.step === 2) {
+      list2.appendChild(card);
+    } else {
+      list3.appendChild(card);
+    }
+  });
+
+  // Add Custom demography question button at end of Part 1 list
+  const addBtn1 = document.createElement("button");
+  addBtn1.type = "button";
+  addBtn1.className = "btn-add-question";
+  addBtn1.style.marginTop = "12px";
+  addBtn1.style.justifyContent = "center";
+  addBtn1.style.width = "100%";
+  addBtn1.innerText = "+ เพิ่มคำถามข้อมูลทั่วไปใหม่";
+  addBtn1.addEventListener("click", () => {
+    const nextId = "P1_Custom_" + Date.now().toString().slice(-4);
+    currentSchema.push({
+      id: nextId,
+      type: "text",
+      text: "คำถามทั่วไปข้อใหม่",
+      step: 1,
+      required: true
+    });
+    renderBuilder();
+  });
+  list1.appendChild(addBtn1);
+  
+  // Bind Delete buttons
+  document.querySelectorAll(".btn-delete-question").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const qid = btn.getAttribute("data-qid");
+      if (confirm(`คุณต้องการลบข้อคำถามรหัส ${qid} ออกใช่หรือไม่?`)) {
+        currentSchema = currentSchema.filter(q => q.id !== qid);
+        renderBuilder();
+      }
+    });
+  });
+}
+
+function handleBuilderReset() {
+  if (confirm("คุณยืนยันที่จะคืนค่าคำถามทั้งหมดกลับเป็นเทมเพลต Word ตั้งต้นใช่หรือไม่? (การเปลี่ยนแปลงที่คุณแก้ไขจะถูกลบทั้งหมด)")) {
+    currentSchema = JSON.parse(JSON.stringify(DEFAULT_SCHEMA));
+    rebuildQuestionsMeta();
+    renderBuilder();
+    alert("รีเซ็ตสคีมาเป็นแบบฟอร์มตั้งต้นแล้ว กรุณากดปุ่ม บันทึก เพื่ออัปโหลดขึ้นสเปรดชีต");
+  }
+}
+
+function saveBuilderSchema() {
+  const updatedSchema = [];
+  
+  // Read Part 1
+  const cards1 = document.querySelectorAll("#builder-part1-list .builder-question-card");
+  cards1.forEach(card => {
+    const id = card.getAttribute("data-qid");
+    const text = card.querySelector('.builder-input-text').value.trim();
+    const isCore = ["Gender", "Age", "Network_Number", "Respondent_Type", "Attendance_Count", "Attendance_Years", "Info_Channels", "Primary_Channel"].includes(id);
+    
+    const q = { id, text, step: 1, required: true };
+    
+    if (isCore) {
+      const orig = currentSchema.find(x => x.id === id);
+      q.type = orig.type;
+      if (orig.choices) q.choices = orig.choices;
+      if (orig.hasOther) q.hasOther = orig.hasOther;
+      if (orig.min !== undefined) q.min = orig.min;
+      if (orig.max !== undefined) q.max = orig.max;
+      if (orig.pattern !== undefined) q.pattern = orig.pattern;
+    } else {
+      q.type = card.querySelector('.builder-input-type').value;
+      if (q.type === "categorical" || q.type === "multi-select") {
+        const choicesVal = card.querySelector('.builder-input-choices').value;
+        q.choices = choicesVal.split(",").map(c => c.trim()).filter(c => c !== "");
+        q.hasOther = q.choices.includes("อื่น ๆ");
+      }
+    }
+    updatedSchema.push(q);
+  });
+  
+  // Read Part 2
+  const cards2 = document.querySelectorAll("#builder-part2-list .builder-question-card");
+  cards2.forEach(card => {
+    const id = card.getAttribute("data-qid");
+    const text = card.querySelector('.builder-input-text').value.trim();
+    const section = card.querySelector('.builder-input-section').value;
+    
+    updatedSchema.push({
+      id,
+      type: "likert",
+      text,
+      section,
+      step: 2,
+      required: true
+    });
+  });
+  
+  // Read Part 3
+  const cards3 = document.querySelectorAll("#builder-part3-list .builder-question-card");
+  cards3.forEach(card => {
+    const id = card.getAttribute("data-qid");
+    const text = card.querySelector('.builder-input-text').value.trim();
+    const orig = currentSchema.find(x => x.id === id);
+    
+    const q = {
+      id,
+      type: orig.type,
+      text,
+      step: 3,
+      required: orig.required
+    };
+    
+    if (id === "Q27" || id === "Q37") {
+      const choicesVal = card.querySelector('.builder-input-choices').value;
+      q.choices = choicesVal.split(",").map(c => c.trim()).filter(c => c !== "");
+      if (id === "Q37") q.hasOther = q.choices.includes("อื่น ๆ");
+    }
+    else if (orig.type === "facilities") {
+      q.subfields = orig.subfields;
+      q.sublabels = [];
+      const subInputs = card.querySelectorAll('.builder-input-sublabel');
+      subInputs.forEach(input => {
+        q.sublabels.push(input.value.trim());
+      });
+    }
+    
+    updatedSchema.push(q);
+  });
+  
+  let hasEmptyText = false;
+  updatedSchema.forEach(q => {
+    if (q.text === "") hasEmptyText = true;
+  });
+  
+  if (hasEmptyText) {
+    alert("กรุณากรอกข้อความคำถามให้ครบถ้วนก่อนบันทึกระบบ");
+    return;
+  }
+  
+  const token = sessionStorage.getItem("admin_token");
+  
+  if (!APPS_SCRIPT_URL) {
+    currentSchema = updatedSchema;
+    rebuildQuestionsMeta();
+    localStorage.setItem("survey_schema", JSON.stringify(updatedSchema));
+    renderSurveyForm();
+    renderDashboardQuestionCards();
+    alert("บันทึกและซิงค์โครงสร้างฟอร์มจำลองสำเร็จแล้ว!");
+    return;
+  }
+  
+  const overlay = document.getElementById("submitting-overlay");
+  if (overlay) overlay.classList.remove("hidden");
+  
+  fetch(APPS_SCRIPT_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      action: "save_schema",
+      idToken: token,
+      schemaData: updatedSchema
+    })
+  })
+  .then(res => res.json())
+  .then(res => {
+    if (overlay) overlay.classList.add("hidden");
+    if (res.status === "success") {
+      currentSchema = updatedSchema;
+      rebuildQuestionsMeta();
+      renderSurveyForm();
+      renderDashboardQuestionCards();
+      alert("บันทึกโครงสร้างสคีมาแบบสอบถามและเพิ่มหัวคอลัมน์ใน Google Sheets เรียบร้อยแล้ว!");
+    } else {
+      alert("บันทึกล้มเหลว: " + res.message);
+    }
+  })
+  .catch(err => {
+    if (overlay) overlay.classList.add("hidden");
+    console.error("Save schema error:", err);
+    alert("ไม่สามารถเข้าต่อเซิร์ฟเวอร์หลังบ้านได้");
+  });
+}
+
+// UTILITIES
+function setCookie(cname, cvalue, exdays) {
+  const d = new Date();
+  d.setTime(d.getTime() + (exdays*24*60*60*1000));
+  let expires = "expires="+ d.toUTCString();
+  document.cookie = cname + "=" + cvalue + ";" + expires + ";path=/;SameSite=Lax";
+}
+
+function getCookie(cname) {
+  let name = cname + "=";
+  let decodedCookie = decodeURIComponent(document.cookie);
+  let ca = decodedCookie.split(';');
+  for(let i = 0; i <ca.length; i++) {
+    let c = ca[i];
+    while (c.charAt(0) == ' ') {
+      c = c.substring(1);
+    }
+    if (c.indexOf(name) == 0) {
+      return c.substring(name.length, c.length);
+    }
+  }
+  return "";
+}
+
+function escapeHtml(text) {
+  const map = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#039;'
+  };
+  return String(text).replace(/[&<>"']/g, function(m) { return map[m]; });
+}
