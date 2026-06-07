@@ -2752,7 +2752,7 @@ function selectSurvey(id) {
   renderSurveysTable();
   
   document.getElementById("survey-editor-title").innerText = `แก้ไขแบบสอบถาม: ${s.surveyName}`;
-  document.getElementById("btn-save-settings-text").innerText = "ตกลง";
+  document.getElementById("btn-save-settings-text").innerText = "บันทึกแบบสอบถาม";
   
   document.getElementById("input-set-title").value = s.surveyName || "";
   
@@ -2852,7 +2852,7 @@ function prepareCreateSurvey() {
   renderSurveysTable();
   
   document.getElementById("survey-editor-title").innerText = "สร้างแบบสอบถามใหม่";
-  document.getElementById("btn-save-settings-text").innerText = "ตกลง";
+  document.getElementById("btn-save-settings-text").innerText = "บันทึกแบบสอบถาม";
   
   document.getElementById("input-set-title").value = "";
   
@@ -2887,7 +2887,7 @@ function prepareCreateSurvey() {
 
 function clearSurveyForm() {
   document.getElementById("survey-editor-title").innerText = "รายละเอียดและการแก้ไขแบบสอบถาม (ไม่มีข้อมูลที่เลือก)";
-  document.getElementById("btn-save-settings-text").innerText = "ตกลง";
+  document.getElementById("btn-save-settings-text").innerText = "บันทึกแบบสอบถาม";
   document.getElementById("input-set-title").value = "";
   
   const list1 = document.getElementById("builder-part1-list");
@@ -3076,42 +3076,48 @@ function renderBuilder() {
   list2.innerHTML = "";
   list3.innerHTML = "";
 
+  const partCounter = { 1: 0, 2: 0, 3: 0 };
+
   currentSchema.forEach(q => {
     const card = document.createElement("div");
-    card.className = "builder-question-card builder-q-item";
+    card.className = "builder-question-card";
     card.setAttribute("data-qid", q.id);
 
     const isCore = isCoreQuestion(q.id);
+    partCounter[q.step] = (partCounter[q.step] || 0) + 1;
+    const qNum = partCounter[q.step];
 
     let headerHtml = `
-      <div class="builder-card-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; border-bottom:1px dashed var(--border-color); padding-bottom:8px;">
-        <span class="builder-qid-badge" style="font-weight:700; background-color:var(--bg-accent); padding:2px 8px; border-radius:4px; font-family:var(--font-code); font-size:0.8rem; color:var(--text-secondary);">${escapeHtml(q.id)}</span>
+      <div class="bq-head">
+        <span class="bq-num">ข้อ ${qNum}</span>
+        ${isCore ? `<span class="bq-colid" title="ชื่อคอลัมน์ในชีต (แก้ไม่ได้)">${escapeHtml(q.id)}</span>` : ``}
+        ${!isCore ? `<button type="button" class="btn-delete-question" data-qid="${escapeHtml(q.id)}" title="ลบคำถามข้อนี้">🗑️ ลบ</button>` : ``}
+      </div>
     `;
-
-    if (!isCore) {
-      headerHtml += `
-        <button type="button" class="btn-delete-question" data-qid="${escapeHtml(q.id)}" style="background:none; border:none; color:var(--danger); cursor:pointer; font-size:1.0rem;" title="ลบคำถาม">🗑️ ลบข้อนี้</button>
-      `;
-    }
-    headerHtml += `</div>`;
 
     let bodyHtml = `
       <div class="form-group">
-        <label class="form-label" style="font-weight:600;">หัวข้อข้อความคำถาม</label>
+        <label class="form-label">หัวข้อข้อความคำถาม</label>
         <input type="text" class="form-control builder-input-text" data-prop="text" value="${escapeHtml(q.text)}">
       </div>
     `;
 
-    // ตัวเลือก "รูปแบบการตอบ" สำหรับคำถามที่ผู้ดูแลระบบเพิ่มเอง (ไม่ใช่คำถามหลักของเทมเพลต)
+    // รูปแบบการตอบ + ชื่อคอลัมน์ในชีต (เฉพาะคำถามที่ผู้ดูแลระบบเพิ่มเอง)
     if (!isCore) {
       let opts = "";
       ANSWER_FORMATS.forEach(f => {
         opts += `<option value="${f.value}" ${q.type === f.value ? "selected" : ""}>${f.label}</option>`;
       });
       bodyHtml += `
-        <div class="form-group mt-2">
-          <label class="form-label" style="font-weight:600;">รูปแบบการตอบ (Answer format)</label>
-          <select class="form-control builder-input-type" data-prop="type" style="width:100%;">${opts}</select>
+        <div class="bq-row">
+          <div class="form-group">
+            <label class="form-label">รูปแบบการตอบ</label>
+            <select class="form-control builder-input-type" data-prop="type">${opts}</select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">ชื่อคอลัมน์ในชีต (แก้ได้)</label>
+            <input type="text" class="form-control builder-input-id" data-prop="id" value="${escapeHtml(q.id)}">
+          </div>
         </div>
       `;
     }
@@ -3254,9 +3260,17 @@ function makeAddQuestionButton(step, label) {
   return btn;
 }
 
+// หา id แบบ Qn ที่ยังว่าง (อ่านง่าย ไม่ชนของเดิม) — ใช้เป็นชื่อคอลัมน์ตั้งต้น แก้ทีหลังได้
+function nextQuestionId() {
+  const used = new Set(currentSchema.map(q => q.id));
+  let n = 1;
+  while (used.has("Q" + n)) n++;
+  return "Q" + n;
+}
+
 // เพิ่มคำถามใหม่หนึ่งข้อในส่วนที่กำหนด พร้อมค่าตั้งต้นตามรูปแบบการตอบ
 function addBuilderQuestion(step) {
-  const id = generateQuestionId("Q");
+  const id = nextQuestionId();
   let q;
   if (step === 1) {
     q = { id, type: "categorical", text: "คำถามใหม่", choices: ["ตัวเลือก 1", "ตัวเลือก 2"], step: 1, required: true };
@@ -3303,7 +3317,25 @@ function collectBuilderSchema(silent) {
 
     for (let i = 0; i < cards.length; i++) {
       const card = cards[i];
-      const id = card.getAttribute("data-qid");
+      const origId = card.getAttribute("data-qid");
+      const isCore = isCoreQuestion(origId);
+      const orig = currentSchema.find(x => x.id === origId);
+
+      // รหัส/ชื่อคอลัมน์: คำถามที่เพิ่มเองแก้ได้ (ทำให้ปลอดภัยและไม่ซ้ำ), คำถามหลักคงเดิม
+      let id = origId;
+      if (!isCore) {
+        const idInput = card.querySelector('.builder-input-id');
+        if (idInput) {
+          const cleaned = idInput.value.trim().replace(/\s+/g, "_").replace(/[^\wก-๙]/g, "_");
+          if (cleaned) id = cleaned;
+        }
+      }
+      if (updatedSchema.some(x => x.id === id)) {
+        const base = id; let k = 2;
+        while (updatedSchema.some(x => x.id === (base + "_" + k))) k++;
+        id = base + "_" + k;
+      }
+
       const textInput = card.querySelector('.builder-input-text');
       const text = textInput ? textInput.value.trim() : "";
 
@@ -3312,8 +3344,6 @@ function collectBuilderSchema(silent) {
         return null;
       }
 
-      const isCore = isCoreQuestion(id);
-      const orig = currentSchema.find(x => x.id === id);
       const q = { id, text, step, required: orig ? (orig.required !== false) : true };
 
       if (isCore) {

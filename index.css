@@ -1742,6 +1742,81 @@ body:not(.dark-theme) .moon-icon { display: block; }
   background-color: var(--teal-bg);
 }
 
+/* ===== SETTINGS TAB — IMPROVED BUILDER & LAYOUT ===== */
+/* QR card: don't stretch to the tall form; keep it visible while scrolling */
+.admin-settings-layout { align-items: start; }
+.settings-qr-card { position: sticky; top: 88px; align-self: start; }
+
+/* Question builder card — clean vertical layout */
+.builder-question-card {
+  background-color: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  transition: var(--transition);
+}
+.builder-question-card:hover { border-color: var(--text-muted); }
+.builder-question-card .form-group { margin-bottom: 0; }
+
+.bq-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.bq-num {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #fff;
+  background-color: var(--accent);
+  padding: 3px 12px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.bq-colid {
+  font-family: var(--font-code, monospace);
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  background-color: var(--bg-accent);
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+.btn-delete-question {
+  margin-left: auto;
+  background: none;
+  border: 1px solid transparent;
+  color: var(--danger);
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+.btn-delete-question:hover { background-color: rgba(239, 68, 68, 0.1); }
+
+/* Two fields side-by-side (format + column name) */
+.bq-row {
+  display: flex;
+  gap: 12px;
+}
+.bq-row > .form-group { flex: 1; }
+@media (max-width: 600px) {
+  .bq-row { flex-direction: column; }
+}
+
+/* Sticky save bar so the Save button is always reachable */
+.settings-save-bar {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  margin-top: 16px;
+  padding: 12px 0 4px;
+  background: linear-gradient(to top, var(--bg-secondary) 75%, transparent);
+}
+
 /* SURVEY CLOSED OVERLAY */
 .survey-closed-pane {
   display: flex;
