@@ -9,6 +9,12 @@
  * 5. บันทึกวันเวลาเริ่ม/สิ้นสุด และบันทึกคำถามแบบไดนามิก (Secure POST)
  */
 
+// เวอร์ชันของสคริปต์ — ใช้ตรวจว่า deploy โค้ดล่าสุดติดแล้วหรือยัง (ดูได้จาก doGet)
+var APP_VERSION = "2026-06-08-admin-superadmin";
+
+// อีเมลที่เป็นแอดมินถาวรเสมอ (ไม่ขึ้นกับชีต Admin) — กันล็อกตัวเองออกจากระบบ
+var SUPER_ADMINS = ["earth.ekka@gmail.com"];
+
 function doGet(e) {
   var corsHeader = {
     "Access-Control-Allow-Origin": "*",
@@ -81,6 +87,7 @@ function doGet(e) {
 
     return ContentService.createTextOutput(JSON.stringify({
       "status": "success",
+      "version": APP_VERSION,
       "settings": settings,
       "schema": schema,
       "surveys": surveys
@@ -433,13 +440,26 @@ function getAdminEmailCol(sheet) {
 
 function checkIsAdmin(ss, email) {
   if (!email) return false;
+  var cleanEmail = email.trim().toLowerCase();
+
+  // 1) แอดมินถาวร (กำหนดในโค้ด)
+  for (var s = 0; s < SUPER_ADMINS.length; s++) {
+    if (String(SUPER_ADMINS[s]).trim().toLowerCase() === cleanEmail) return true;
+  }
+
+  // 2) เจ้าของไฟล์/สคริปต์ เป็นแอดมินอัตโนมัติ
+  try {
+    var owner = Session.getEffectiveUser().getEmail();
+    if (owner && owner.trim().toLowerCase() === cleanEmail) return true;
+  } catch (e) {}
+
+  // 3) รายชื่อในชีต "Admin" (คอลัมน์ E-mail)
   var sheet = getAdminSheet(ss);
   var lastRow = sheet.getLastRow();
   if (lastRow <= 1) return false;
 
   var emailCol = getAdminEmailCol(sheet);
   var values = sheet.getRange(2, emailCol, lastRow - 1, 1).getValues();
-  var cleanEmail = email.trim().toLowerCase();
 
   for (var i = 0; i < values.length; i++) {
     if (String(values[i][0]).trim().toLowerCase() === cleanEmail) {
