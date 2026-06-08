@@ -100,8 +100,8 @@
             </div>
             <!-- Dashboard Survey Selector -->
             <div class="dashboard-selector-card" style="background: rgba(255,255,255,0.15); backdrop-filter: blur(10px); padding: 12px 16px; border-radius: var(--radius-md); border: 1px solid rgba(255,255,255,0.2); display: flex; flex-direction: column; gap: 6px; min-width: 280px; align-self: center;">
-              <label for="dashboard-survey-selector" style="font-size: 0.75rem; font-weight: 600; color: white; opacity: 0.95;">เลือกข้อมูลแบบสอบถามที่ต้องการดูสถิติ</label>
-              <select id="dashboard-survey-selector" class="form-control" style="background: white; color: var(--text-primary); border: none; padding: 8px 12px; font-size: 0.85rem; border-radius: var(--radius-sm); cursor: pointer; width: 100%;">
+              <label for="dashboard-survey-selector" style="font-size: 0.75rem; font-weight: 600; color: var(--text-primary);">เลือกข้อมูลแบบสอบถามที่ต้องการดูสถิติ</label>
+              <select id="dashboard-survey-selector" class="form-control" style="background: white; color: #1f2937; border: none; padding: 8px 12px; font-size: 0.85rem; border-radius: var(--radius-sm); cursor: pointer; width: 100%;">
                 <option value="all">ดูทุกแบบสอบถามรวมกัน</option>
               </select>
             </div>
@@ -277,7 +277,6 @@
 
               <!-- SURVEY EDITOR FORM -->
               <div id="survey-editor-section" style="border-top: 1px dashed var(--border-color); padding-top: 20px;">
-                <h4 id="survey-editor-title" style="margin-bottom: 16px;">รายละเอียดและการแก้ไขแบบสอบถาม</h4>
                 <form id="form-survey-settings">
                   <div class="form-group">
                     <label for="input-set-title" class="form-label">ชื่อแบบประเมินผล / แบบสอบถาม</label>
@@ -303,42 +302,12 @@
                     </div>
                   </div>
 
-                  <!-- DYNAMIC SURVEY BUILDER INTEGRATION -->
+                  <!-- DYNAMIC SURVEY BUILDER INTEGRATION (รายการคำถามแบบเดียว ไม่แบ่งส่วน) -->
                   <div style="margin-top: 24px; margin-bottom: 24px; border-top: 1px dashed var(--border-color); padding-top: 20px;">
-                    <h5 style="margin-bottom: 12px; font-weight: 600; color: var(--text-primary);">ข้อคำถามในแบบสอบถาม</h5>
-                    <div class="builder-sections-container" style="margin-bottom: 0;">
-                      <!-- Part 1 Builder Section -->
-                      <div class="builder-section-card" style="margin-bottom: 16px; padding: 16px;">
-                        <div class="builder-section-header" style="margin-bottom: 12px; padding-bottom: 8px;">
-                          <h6 style="margin: 0; font-size: 0.9rem; font-weight: 700;">ส่วนที่ 1: ข้อมูลทั่วไป</h6>
-                          <p style="margin: 2px 0 0 0; font-size: 0.75rem; color: var(--text-muted);">แก้ไขข้อมูลพื้นฐานทั่วไปที่ต้องการเก็บสถิติ</p>
-                        </div>
-                        <div class="builder-questions-list" id="builder-part1-list">
-                          <!-- Injected dynamically by JS -->
-                        </div>
-                      </div>
-
-                      <!-- Part 2 Builder Section -->
-                      <div class="builder-section-card" style="margin-bottom: 16px; padding: 16px;">
-                        <div class="builder-section-header" style="margin-bottom: 12px; padding-bottom: 8px;">
-                          <h6 style="margin: 0; font-size: 0.9rem; font-weight: 700;">ส่วนที่ 2: ความคิดเห็นที่มีต่อเวทีจัดงาน (สเกลประเมิน 1-5)</h6>
-                          <p style="margin: 2px 0 0 0; font-size: 0.75rem; color: var(--text-muted);">ข้อความแสดงทัศนคติ จัดกลุ่มตามด้านบริบท ปัจจัยนำเข้า กระบวนการ และผลผลิต</p>
-                        </div>
-                        <div class="builder-questions-list" id="builder-part2-list">
-                          <!-- Injected dynamically by JS (รวมปุ่มเพิ่มคำถาม) -->
-                        </div>
-                      </div>
-
-                      <!-- Part 3 Builder Section -->
-                      <div class="builder-section-card" style="margin-bottom: 16px; padding: 16px;">
-                        <div class="builder-section-header" style="margin-bottom: 12px; padding-bottom: 8px;">
-                          <h6 style="margin: 0; font-size: 0.9rem; font-weight: 700;">ส่วนที่ 3: ระดับความพึงพอใจและคำถามปลายเปิด</h6>
-                          <p style="margin: 2px 0 0 0; font-size: 0.75rem; color: var(--text-muted);">การแสดงความเห็นประเมินสิ่งอำนวยความสะดวก การมีส่วนร่วม และข้อเสนอแนะตัวหนังสือ</p>
-                        </div>
-                        <div class="builder-questions-list" id="builder-part3-list">
-                          <!-- Injected dynamically by JS -->
-                        </div>
-                      </div>
+                    <h5 style="margin-bottom: 4px; font-weight: 600; color: var(--text-primary);">ข้อคำถามในแบบสอบถาม</h5>
+                    <p style="margin: 0 0 12px 0; font-size: 0.75rem; color: var(--text-muted);">เพิ่มคำถามทีละข้อ และเลือกรูปแบบการตอบของแต่ละข้อได้อิสระ</p>
+                    <div class="builder-questions-list" id="builder-questions-list">
+                      <!-- Injected dynamically by JS (รวมปุ่มเพิ่มคำถาม) -->
                     </div>
                   </div>
 
@@ -421,9 +390,7 @@
           <!-- Wizard Steps Progress Bar -->
           <div class="wizard-progress-bar">
             <div class="progress-step active" data-step="0">ยินยอม</div>
-            <div class="progress-step" data-step="1">ข้อมูลทั่วไป</div>
-            <div class="progress-step" data-step="2">ความพึงพอใจ</div>
-            <div class="progress-step" data-step="3">ข้อเสนอแนะ</div>
+            <div class="progress-step" data-step="1">แบบสอบถาม</div>
           </div>
         </div>
 
@@ -459,47 +426,9 @@
             </div>
           </div>
 
-          <!-- STEP 1: GENERAL INFO (Populated Dynamically) -->
+          <!-- STEP 1: ALL QUESTIONS (Populated Dynamically, no sections) -->
           <div class="form-step-pane" data-step="1">
-            <h3 class="step-title">ส่วนที่ 1: ข้อมูลทั่วไปของผู้ตอบแบบสอบถาม</h3>
-            <div id="step-1-content">
-              <!-- Injected by JavaScript dynamically -->
-            </div>
-            
-            <div class="step-footer">
-              <button type="button" class="btn-secondary btn-prev-step">ย้อนกลับ</button>
-              <button type="button" class="btn-primary btn-next-step">ถัดไป</button>
-            </div>
-          </div>
-
-          <!-- STEP 2: OPINIONS (LIKERT 1-5 GRID) (Populated Dynamically) -->
-          <div class="form-step-pane" data-step="2">
-            <h3 class="step-title">ส่วนที่ 2: ความความคิดเห็นที่เกี่ยวข้องกับการจัดงาน</h3>
-            <p class="step-subtitle">โปรดประเมินระดับความเห็นด้วยกับข้อความต่อไปนี้</p>
-            
-            <div class="scale-legend">
-              <span class="legend-item"><span class="badge">5</span> มากที่สุด</span>
-              <span class="legend-item"><span class="badge">4</span> มาก</span>
-              <span class="legend-item"><span class="badge">3</span> ปานกลาง</span>
-              <span class="legend-item"><span class="badge">2</span> น้อย</span>
-              <span class="legend-item"><span class="badge">1</span> น้อยที่สุด</span>
-            </div>
-
-            <!-- Likert Questions List (Rendered dynamically in JS) -->
-            <div class="likert-wizard-container" id="likert-questions-wrapper">
-              <!-- Injected by JavaScript dynamically -->
-            </div>
-            
-            <div class="step-footer">
-              <button type="button" class="btn-secondary btn-prev-step">ย้อนกลับ</button>
-              <button type="button" class="btn-primary btn-next-step">ถัดไป</button>
-            </div>
-          </div>
-
-          <!-- STEP 3: SATISFACTION & SUGGESTIONS (Populated Dynamically) -->
-          <div class="form-step-pane" data-step="3">
-            <h3 class="step-title">ส่วนที่ 3: ระดับความพึงพอใจ การมีส่วนร่วม และการนำไปใช้ประโยชน์</h3>
-            <div id="step-3-content">
+            <div id="survey-questions-content">
               <!-- Injected by JavaScript dynamically -->
             </div>
 

@@ -870,7 +870,8 @@ function validateStep(stepNum) {
   pane.querySelectorAll('.likert-form-card.has-error').forEach(el => el.classList.remove('has-error'));
   pane.querySelectorAll('.sub-rate-item.has-error').forEach(el => el.classList.remove('has-error'));
 
-  const stepQuestions = currentSchema.filter(q => q.step === stepNum);
+  // ฟอร์มรวมเป็นขั้นตอนเดียว (step 1) จึงตรวจสอบคำถามทุกข้อ
+  const stepQuestions = stepNum === 0 ? [] : currentSchema;
   
   if (stepNum === 0) {
     const consentVal = pane.querySelector('input[name="Consent"]:checked');
@@ -954,45 +955,39 @@ function validateStep(stepNum) {
 
 // DYNAMIC GENERATION OF ELEMENTS IN SURVEY
 function renderSurveyForm() {
-  const step1 = document.getElementById("step-1-content");
-  const likertWrapper = document.getElementById("likert-questions-wrapper");
-  const step3 = document.getElementById("step-3-content");
+  const container = document.getElementById("survey-questions-content");
+  if (!container) return;
 
-  if (!step1 || !likertWrapper || !step3) return;
+  let html = "";
 
-  // ---------- ส่วนที่ 1 ----------
-  let step1Html = "";
-  const step1Questions = currentSchema.filter(q => q.step === 1);
-  step1Questions.forEach(q => {
+  // แสดงคำอธิบายสเกล 1-5 เมื่อมีคำถามแบบ Likert
+  if (currentSchema.some(q => q.type === "likert")) {
+    html += `
+      <div class="scale-legend">
+        <span class="legend-item"><span class="badge">5</span> มากที่สุด</span>
+        <span class="legend-item"><span class="badge">4</span> มาก</span>
+        <span class="legend-item"><span class="badge">3</span> ปานกลาง</span>
+        <span class="legend-item"><span class="badge">2</span> น้อย</span>
+        <span class="legend-item"><span class="badge">1</span> น้อยที่สุด</span>
+      </div>
+    `;
+  }
+
+  currentSchema.forEach(q => {
     if (q.type === "years-checkbox" || q.id === "Attendance_Years") {
-      step1Html += `
+      html += `
         <div class="form-group hidden" id="attendance-years-wrapper">
           <label class="form-label">${escapeHtml(q.text)}</label>
           <div class="checkbox-grid"><!-- Populated dynamically --></div>
           <input type="hidden" name="Attendance_Years" id="input-attend-years">
         </div>
       `;
-    } else {
-      step1Html += `<div class="form-group" data-qid="${escapeHtml(q.id)}">`;
-      step1Html += renderAnswerField(q);
-      step1Html += `<div class="error-message">กรุณากรอกข้อมูลในข้อนี้ให้ถูกต้อง</div>`;
-      step1Html += `</div>`;
-    }
-  });
-  step1.innerHTML = step1Html;
-  generateYearsCheckboxes();
-  bindAnswerFieldEvents(step1, step1Questions);
-
-  // ---------- ส่วนที่ 2 ----------
-  let likertHtml = "";
-  const step2Questions = currentSchema.filter(q => q.step === 2);
-  step2Questions.forEach(q => {
-    if (q.type === "likert") {
+    } else if (q.type === "likert") {
       const sectionName = q.section === "Context" ? "ด้านบริบทเวทีสานพลัง (Context)" :
                           q.section === "Input" ? "ด้านปัจจัยนำเข้า (Input)" :
                           q.section === "Process" ? "ด้านกระบวนการจัดการ (Process)" :
                           q.section === "Output" ? "ด้านผลลัพธ์เวทีฯ (Output/Outcome)" : "";
-      likertHtml += `
+      html += `
         <div class="likert-form-card" data-qid="${escapeHtml(q.id)}">
           <div class="likert-card-header">
             <span class="likert-q-num">${escapeHtml(q.id)}${sectionName ? " • " + sectionName : ""}</span>
@@ -1003,26 +998,16 @@ function renderSurveyForm() {
         </div>
       `;
     } else {
-      likertHtml += `<div class="form-group" data-qid="${escapeHtml(q.id)}" style="margin-bottom:16px;">`;
-      likertHtml += renderAnswerField(q);
-      likertHtml += `<div class="error-message">กรุณากรอกข้อมูลในข้อนี้ให้ถูกต้อง</div>`;
-      likertHtml += `</div>`;
+      html += `<div class="form-group" data-qid="${escapeHtml(q.id)}">`;
+      html += renderAnswerField(q);
+      html += `<div class="error-message">กรุณากรอกข้อมูลในข้อนี้ให้ถูกต้อง</div>`;
+      html += `</div>`;
     }
   });
-  likertWrapper.innerHTML = likertHtml;
-  bindAnswerFieldEvents(likertWrapper, step2Questions);
 
-  // ---------- ส่วนที่ 3 ----------
-  let step3Html = "";
-  const step3Questions = currentSchema.filter(q => q.step === 3);
-  step3Questions.forEach(q => {
-    step3Html += `<div class="form-group" data-qid="${escapeHtml(q.id)}">`;
-    step3Html += renderAnswerField(q);
-    step3Html += `<div class="error-message">กรุณากรอกข้อมูลในข้อนี้ให้ถูกต้อง</div>`;
-    step3Html += `</div>`;
-  });
-  step3.innerHTML = step3Html;
-  bindAnswerFieldEvents(step3, step3Questions);
+  container.innerHTML = html;
+  generateYearsCheckboxes();
+  bindAnswerFieldEvents(container, currentSchema);
 }
 
 // สร้างปุ่มให้คะแนนแบบเรดิโอ 1..max (ใช้กับ Likert และ facilities)
@@ -2751,7 +2736,7 @@ function selectSurvey(id) {
   
   renderSurveysTable();
   
-  document.getElementById("survey-editor-title").innerText = `แก้ไขแบบสอบถาม: ${s.surveyName}`;
+  // (หัวข้อ editor ถูกนำออกแล้วตามคำขอ)
   document.getElementById("btn-save-settings-text").innerText = "บันทึกแบบสอบถาม";
   
   document.getElementById("input-set-title").value = s.surveyName || "";
@@ -2851,7 +2836,7 @@ function prepareCreateSurvey() {
   selectedSurveyId = "";
   renderSurveysTable();
   
-  document.getElementById("survey-editor-title").innerText = "สร้างแบบสอบถามใหม่";
+  // (หัวข้อ editor ถูกนำออกแล้วตามคำขอ)
   document.getElementById("btn-save-settings-text").innerText = "บันทึกแบบสอบถาม";
   
   document.getElementById("input-set-title").value = "";
@@ -2886,16 +2871,12 @@ function prepareCreateSurvey() {
 }
 
 function clearSurveyForm() {
-  document.getElementById("survey-editor-title").innerText = "รายละเอียดและการแก้ไขแบบสอบถาม (ไม่มีข้อมูลที่เลือก)";
+  // (หัวข้อ editor ถูกนำออกแล้วตามคำขอ)
   document.getElementById("btn-save-settings-text").innerText = "บันทึกแบบสอบถาม";
   document.getElementById("input-set-title").value = "";
   
-  const list1 = document.getElementById("builder-part1-list");
-  const list2 = document.getElementById("builder-part2-list");
-  const list3 = document.getElementById("builder-part3-list");
-  if (list1) list1.innerHTML = "";
-  if (list2) list2.innerHTML = "";
-  if (list3) list3.innerHTML = "";
+  const list = document.getElementById("builder-questions-list");
+  if (list) list.innerHTML = "";
   const tokenInput = document.getElementById("input-set-token");
   if (tokenInput) tokenInput.value = "";
   const startInput = document.getElementById("input-set-start");
@@ -3066,17 +3047,12 @@ function isCoreQuestion(id) {
 }
 
 function renderBuilder() {
-  const list1 = document.getElementById("builder-part1-list");
-  const list2 = document.getElementById("builder-part2-list");
-  const list3 = document.getElementById("builder-part3-list");
+  const list = document.getElementById("builder-questions-list");
+  if (!list) return;
 
-  if (!list1 || !list2 || !list3) return;
+  list.innerHTML = "";
 
-  list1.innerHTML = "";
-  list2.innerHTML = "";
-  list3.innerHTML = "";
-
-  const partCounter = { 1: 0, 2: 0, 3: 0 };
+  let counter = 0;
 
   currentSchema.forEach(q => {
     const card = document.createElement("div");
@@ -3084,8 +3060,8 @@ function renderBuilder() {
     card.setAttribute("data-qid", q.id);
 
     const isCore = isCoreQuestion(q.id);
-    partCounter[q.step] = (partCounter[q.step] || 0) + 1;
-    const qNum = partCounter[q.step];
+    counter += 1;
+    const qNum = counter;
 
     let headerHtml = `
       <div class="bq-head">
@@ -3135,8 +3111,8 @@ function renderBuilder() {
       `;
     }
 
-    // ช่องเลือกด้านการประเมิน (เฉพาะ Likert ในส่วนที่ 2)
-    if (q.type === "likert" && q.step === 2) {
+    // ช่องเลือกด้านการประเมิน (สำหรับ Likert ทุกข้อ)
+    if (q.type === "likert") {
       bodyHtml += `
         <div class="form-group mt-2">
           <label class="form-label" style="font-weight:600;">หัวข้อย่อยด้านการประเมิน (Section)</label>
@@ -3199,19 +3175,11 @@ function renderBuilder() {
 
     card.innerHTML = headerHtml + bodyHtml;
 
-    if (q.step === 1) {
-      list1.appendChild(card);
-    } else if (q.step === 2) {
-      list2.appendChild(card);
-    } else {
-      list3.appendChild(card);
-    }
+    list.appendChild(card);
   });
 
-  // ปุ่ม "เพิ่มคำถาม" ท้ายรายการของแต่ละส่วน
-  list1.appendChild(makeAddQuestionButton(1, "+ เพิ่มคำถามในส่วนที่ 1"));
-  list2.appendChild(makeAddQuestionButton(2, "+ เพิ่มคำถามในส่วนที่ 2"));
-  list3.appendChild(makeAddQuestionButton(3, "+ เพิ่มคำถามในส่วนที่ 3"));
+  // ปุ่มเพิ่มคำถาม (รายการเดียว ไม่แบ่งส่วน)
+  list.appendChild(makeAddQuestionButton("+ เพิ่มคำถามใหม่"));
 
   // เปลี่ยนรูปแบบการตอบ -> เก็บค่าที่กรอกไว้ก่อนแล้ว render ใหม่เพื่อแสดงช่องตั้งค่าให้ตรงประเภท
   document.querySelectorAll(".builder-input-type").forEach(sel => {
@@ -3248,7 +3216,7 @@ function renderBuilder() {
   });
 }
 
-function makeAddQuestionButton(step, label) {
+function makeAddQuestionButton(label) {
   const btn = document.createElement("button");
   btn.type = "button";
   btn.className = "btn-add-question";
@@ -3256,7 +3224,7 @@ function makeAddQuestionButton(step, label) {
   btn.style.justifyContent = "center";
   btn.style.width = "100%";
   btn.innerText = label;
-  btn.addEventListener("click", () => addBuilderQuestion(step));
+  btn.addEventListener("click", () => addBuilderQuestion());
   return btn;
 }
 
@@ -3268,17 +3236,10 @@ function nextQuestionId() {
   return "Q" + n;
 }
 
-// เพิ่มคำถามใหม่หนึ่งข้อในส่วนที่กำหนด พร้อมค่าตั้งต้นตามรูปแบบการตอบ
-function addBuilderQuestion(step) {
+// เพิ่มคำถามใหม่หนึ่งข้อต่อท้ายรายการ (รูปแบบการตอบตั้งต้น = เลือกตอบข้อเดียว)
+function addBuilderQuestion() {
   const id = nextQuestionId();
-  let q;
-  if (step === 1) {
-    q = { id, type: "categorical", text: "คำถามใหม่", choices: ["ตัวเลือก 1", "ตัวเลือก 2"], step: 1, required: true };
-  } else if (step === 2) {
-    q = { id, type: "likert", text: "คำถามใหม่", section: "Context", step: 2, required: true };
-  } else {
-    q = { id, type: "text", text: "คำถามใหม่", step: 3, required: true };
-  }
+  const q = { id, type: "categorical", text: "คำถามใหม่", choices: ["ตัวเลือก 1", "ตัวเลือก 2"], step: 1, required: true };
   syncAndRerender(() => { currentSchema.push(q); });
 }
 
@@ -3305,15 +3266,10 @@ function handleBuilderReset() {
 // silent = false: ใช้ตอนกดบันทึก (ตรวจสอบว่าต้องกรอกข้อความครบ)
 function collectBuilderSchema(silent) {
   const updatedSchema = [];
-  const lists = [
-    { sel: "#builder-part1-list", step: 1 },
-    { sel: "#builder-part2-list", step: 2 },
-    { sel: "#builder-part3-list", step: 3 }
-  ];
+  const step = 1; // รายการคำถามเดียว ไม่แบ่งส่วน
 
-  for (let li = 0; li < lists.length; li++) {
-    const step = lists[li].step;
-    const cards = document.querySelectorAll(`${lists[li].sel} .builder-question-card`);
+  {
+    const cards = document.querySelectorAll("#builder-questions-list .builder-question-card");
 
     for (let i = 0; i < cards.length; i++) {
       const card = cards[i];
@@ -3340,7 +3296,7 @@ function collectBuilderSchema(silent) {
       const text = textInput ? textInput.value.trim() : "";
 
       if (!text && !silent) {
-        alert(`กรุณากรอกหัวข้อข้อความคำถามให้ครบถ้วนใน ส่วนที่ ${step}`);
+        alert("กรุณากรอกหัวข้อข้อความคำถามให้ครบถ้วนทุกข้อ");
         return null;
       }
 
@@ -3378,7 +3334,7 @@ function collectBuilderSchema(silent) {
       }
 
       const sectionSel = card.querySelector('.builder-input-section');
-      if (sectionSel && q.type === "likert" && step === 2) {
+      if (sectionSel && q.type === "likert") {
         q.section = sectionSel.value;
       }
 
