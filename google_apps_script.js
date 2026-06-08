@@ -326,7 +326,7 @@ function doPost(e) {
         }
       }
 
-      var sheet = ss.getSheets()[0]; // เก็บในชีตคำตอบแผ่นแรก
+      var sheet = getAnswerSheet(ss); // เก็บคำตอบในชีต "Answer"
       var lastRow = sheet.getLastRow();
       var headers = [];
 
@@ -402,25 +402,47 @@ function verifyGoogleToken(idToken) {
   return null;
 }
 
+// คืนชีตรายชื่อแอดมิน: ใช้ "Admin" (No, E-mail) เป็นหลัก, รองรับ "Admins" เดิม,
+// ถ้าไม่มีเลยให้สร้าง "Admin" พร้อมหัวคอลัมน์ No, E-mail และใส่อีเมลเจ้าของไฟล์เป็นแอดมินคนแรก
+function getAdminSheet(ss) {
+  var sheet = ss.getSheetByName("Admin");
+  if (sheet) return sheet;
+
+  var legacy = ss.getSheetByName("Admins");
+  if (legacy) return legacy;
+
+  sheet = ss.insertSheet("Admin");
+  sheet.getRange(1, 1, 1, 2).setValues([["No", "E-mail"]]).setFontWeight("bold").setBackground("#e2f0d9");
+  var owner = Session.getEffectiveUser().getEmail();
+  if (owner) {
+    sheet.getRange(2, 1, 1, 2).setValues([[1, owner]]);
+  }
+  return sheet;
+}
+
+// หาเลขคอลัมน์ที่เก็บอีเมล (หัวคอลัมน์มีคำว่า mail) — รองรับทั้ง "E-mail" และ "Email"
+function getAdminEmailCol(sheet) {
+  var lastCol = sheet.getLastColumn();
+  if (lastCol < 1) return 1;
+  var headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+  for (var i = 0; i < headers.length; i++) {
+    if (String(headers[i]).toLowerCase().indexOf("mail") !== -1) return i + 1;
+  }
+  return lastCol >= 2 ? 2 : 1; // เดาว่าเป็นโครงสร้าง No, E-mail
+}
+
 function checkIsAdmin(ss, email) {
   if (!email) return false;
-  var adminSheet = ss.getSheetByName("Admins");
-  if (!adminSheet) {
-    // สร้างแผ่นออโต้เมื่อไม่พบ
-    adminSheet = ss.insertSheet("Admins");
-    adminSheet.getRange(1, 1).setValue("Email").setFontWeight("bold").setBackground("#e2f0d9");
-    var owner = Session.getEffectiveUser().getEmail();
-    adminSheet.getRange(2, 1).setValue(owner);
-  }
-  
-  var lastRow = adminSheet.getLastRow();
+  var sheet = getAdminSheet(ss);
+  var lastRow = sheet.getLastRow();
   if (lastRow <= 1) return false;
-  
-  var emails = adminSheet.getRange(2, 1, lastRow - 1, 1).getValues();
+
+  var emailCol = getAdminEmailCol(sheet);
+  var values = sheet.getRange(2, emailCol, lastRow - 1, 1).getValues();
   var cleanEmail = email.trim().toLowerCase();
-  
-  for (var i = 0; i < emails.length; i++) {
-    if (String(emails[i][0]).trim().toLowerCase() === cleanEmail) {
+
+  for (var i = 0; i < values.length; i++) {
+    if (String(values[i][0]).trim().toLowerCase() === cleanEmail) {
       return true;
     }
   }
@@ -428,45 +450,53 @@ function checkIsAdmin(ss, email) {
 }
 
 function getAdminsList(ss) {
-  var adminSheet = ss.getSheetByName("Admins");
-  if (!adminSheet) return [];
-  
-  var lastRow = adminSheet.getLastRow();
+  var sheet = getAdminSheet(ss);
+  var lastRow = sheet.getLastRow();
   if (lastRow <= 1) return [];
-  
-  var emails = adminSheet.getRange(2, 1, lastRow - 1, 1).getValues();
-  return emails.map(row => row[0]);
+
+  var emailCol = getAdminEmailCol(sheet);
+  var values = sheet.getRange(2, emailCol, lastRow - 1, 1).getValues();
+  return values.map(function (r) { return r[0]; }).filter(function (e) { return e !== "" && e != null; });
 }
 
 function addAdminEmail(ss, newEmail) {
-  var adminSheet = ss.getSheetByName("Admins");
-  if (!adminSheet) return false;
-  
-  var emails = getAdminsList(ss);
-  var cleanEmail = newEmail.trim().toLowerCase();
-  
-  if (emails.map(e => e.toLowerCase()).indexOf(cleanEmail) !== -1) {
+  var sheet = getAdminSheet(ss);
+  var emailCol = getAdminEmailCol(sheet);
+
+  var existing = getAdminsList(ss).map(function (e) { return String(e).trim().toLowerCase(); });
+  if (existing.indexOf(newEmail.trim().toLowerCase()) !== -1) {
     return false; // มีอยู่แล้ว
   }
-  
-  adminSheet.appendRow([newEmail]);
+
+  var newRow = sheet.getLastRow() + 1;
+  if (emailCol === 2) {
+    // โครงสร้าง No, E-mail
+    sheet.getRange(newRow, 1).setValue(newRow - 1);
+    sheet.getRange(newRow, 2).setValue(newEmail);
+  } else {
+    sheet.getRange(newRow, emailCol).setValue(newEmail);
+  }
   return true;
 }
 
 function deleteAdminEmail(ss, deleteEmail) {
-  var adminSheet = ss.getSheetByName("Admins");
-  if (!adminSheet) return false;
-  
-  var lastRow = adminSheet.getLastRow();
+  var sheet = getAdminSheet(ss);
+  var lastRow = sheet.getLastRow();
   if (lastRow <= 1) return false;
-  
-  var emails = adminSheet.getRange(2, 1, lastRow - 1, 1).getValues();
+
+  var emailCol = getAdminEmailCol(sheet);
+  var values = sheet.getRange(2, emailCol, lastRow - 1, 1).getValues();
   var cleanEmail = deleteEmail.trim().toLowerCase();
-  
-  for (var i = 0; i < emails.length; i++) {
-    if (String(emails[i][0]).trim().toLowerCase() === cleanEmail) {
-      // แถวที่ลบต้องบวกเพิ่ม 2 (1-indexed และเว้นบรรทัดหัวข้อ)
-      adminSheet.deleteRow(i + 2);
+
+  for (var i = 0; i < values.length; i++) {
+    if (String(values[i][0]).trim().toLowerCase() === cleanEmail) {
+      sheet.deleteRow(i + 2);
+      // เรียงเลขลำดับใหม่ในคอลัมน์ No (ถ้ามี)
+      var hdr = sheet.getRange(1, 1).getValue();
+      var lr = sheet.getLastRow();
+      if (lr > 1 && String(hdr).toLowerCase().indexOf("no") !== -1) {
+        for (var r = 2; r <= lr; r++) sheet.getRange(r, 1).setValue(r - 1);
+      }
       return true;
     }
   }
@@ -558,7 +588,7 @@ function saveSurveySchema(ss, schemaArray) {
 
 // ซิงโครไนซ์คอลัมน์ของชีตเก็บคำตอบให้มีช่องเก็บข้อมูลของคำถามล่าสุด
 function syncSheetHeadersWithSchema(ss, schemaArray) {
-  var ansSheet = ss.getSheets()[0]; // ชีตเก็บคำตอบ
+  var ansSheet = getAnswerSheet(ss); // ชีตเก็บคำตอบ "Answer"
   if (!ansSheet) return;
   
   var lastRow = ansSheet.getLastRow();
@@ -614,8 +644,17 @@ function syncSheetHeadersWithSchema(ss, schemaArray) {
   }
 }
 
+// คืนชีตเก็บคำตอบชื่อ "Answer" (สร้างใหม่ถ้ายังไม่มี) — แถว=ผู้ตอบ, คอลัมน์=คำถามที่ตอบ
+function getAnswerSheet(ss) {
+  var sheet = ss.getSheetByName("Answer");
+  if (!sheet) {
+    sheet = ss.insertSheet("Answer");
+  }
+  return sheet;
+}
+
 function getResponsesData(ss) {
-  var sheet = ss.getSheets()[0];
+  var sheet = getAnswerSheet(ss);
   var lastRow = sheet.getLastRow();
   var lastCol = sheet.getLastColumn();
   
