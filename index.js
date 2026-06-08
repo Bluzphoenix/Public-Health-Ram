@@ -378,6 +378,17 @@ function setupEventListeners() {
     });
   }
 
+  // Bind manual dashboard refresh
+  const btnRefreshDash = document.getElementById('btn-refresh-dashboard');
+  if (btnRefreshDash) {
+    btnRefreshDash.addEventListener('click', () => {
+      btnRefreshDash.style.transform = 'rotate(360deg)';
+      btnRefreshDash.style.transition = 'transform 0.5s';
+      setTimeout(() => { btnRefreshDash.style.transform = ''; }, 500);
+      refreshDashboardData();
+    });
+  }
+
   // Bind Survey List Actions
   const btnSurveyCreate = document.getElementById('btn-survey-create');
   if (btnSurveyCreate) {
@@ -776,7 +787,8 @@ function showView(viewName) {
   if (viewName === 'dashboard') {
     if (viewDashboard) viewDashboard.classList.add('active');
     renderDashboardOverview();
-    
+    refreshDashboardData(); // ดึงข้อมูลล่าสุดทันทีเมื่อเข้าหน้าแดชบอร์ด
+
     if (btnGoSurvey) btnGoSurvey.classList.remove('hidden');
     if (btnBackDashboard) btnBackDashboard.classList.add('hidden');
     if (btnGoAdmin) btnGoAdmin.classList.add('hidden');
@@ -1446,8 +1458,10 @@ function fetchDataSecurely(token) {
         syncStatusText.style.color = "var(--success)";
       }
       if (syncDot) syncDot.classList.add('connected');
-      
+
+      lastDataHash = computeDataHash(appData);
       renderDashboardOverview();
+      startDashboardPolling();
     } else if (res.status === "unauthorized") {
       sessionStorage.clear();
       showLoginPane();
@@ -1483,7 +1497,71 @@ function fetchDataSecurely(token) {
   });
 }
 
+// ===== REAL-TIME DASHBOARD REFRESH (รีเฟรชสถิติอัตโนมัติ) =====
+let dashboardPollTimer = null;
+let lastDataHash = "";
+
+function computeDataHash(arr) {
+  if (!Array.isArray(arr)) return "";
+  return arr.length + "|" + (arr.length ? JSON.stringify(arr[arr.length - 1]) : "");
+}
+
+// ดึงคำตอบล่าสุดจากชีต "Answer" แล้วอัปเดตแดชบอร์ด (re-render เฉพาะเมื่อมีข้อมูลใหม่)
+function refreshDashboardData() {
+  const token = sessionStorage.getItem("admin_token");
+  if (!token) return;
+
+  if (!APPS_SCRIPT_URL) {
+    renderDashboardOverview();
+    return;
+  }
+
+  fetch(APPS_SCRIPT_URL, {
+    method: "POST",
+    headers: { "Content-Type": "text/plain;charset=utf-8" },
+    body: JSON.stringify({ action: "fetch_data", idToken: token })
+  })
+  .then(res => res.json())
+  .then(res => {
+    if (res.status === "success" && Array.isArray(res.data)) {
+      const hash = computeDataHash(res.data);
+      if (hash !== lastDataHash) {
+        lastDataHash = hash;
+        appData = res.data;
+        renderDashboardOverview();
+      }
+      if (syncStatusText) {
+        const t = new Date();
+        const p = n => String(n).padStart(2, '0');
+        syncStatusText.innerText = `อัปเดตล่าสุด ${p(t.getHours())}:${p(t.getMinutes())}:${p(t.getSeconds())} น.`;
+        syncStatusText.style.color = "var(--success)";
+      }
+      if (syncDot) syncDot.classList.add('connected');
+    }
+  })
+  .catch(err => { console.warn("Dashboard auto-refresh failed:", err); });
+}
+
+function startDashboardPolling() {
+  stopDashboardPolling();
+  dashboardPollTimer = setInterval(() => {
+    const dash = document.getElementById('view-dashboard');
+    const isDashActive = dash && dash.classList.contains('active');
+    if (isDashActive && sessionStorage.getItem('admin_token')) {
+      refreshDashboardData();
+    }
+  }, 12000); // ทุก 12 วินาที
+}
+
+function stopDashboardPolling() {
+  if (dashboardPollTimer) {
+    clearInterval(dashboardPollTimer);
+    dashboardPollTimer = null;
+  }
+}
+
 function handleLogout() {
+  stopDashboardPolling();
   sessionStorage.removeItem("admin_token");
   sessionStorage.removeItem("admin_email");
   showLoginPane();
