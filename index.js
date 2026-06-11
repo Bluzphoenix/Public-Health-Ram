@@ -2303,7 +2303,12 @@ function submitFormAnswers() {
     }
     else if (q.type === "multi-select") {
       const selected = Array.from(form.querySelectorAll(`input[name="${q.id}_List"]:checked`)).map(el => el.value);
+      // คอลัมน์รวม (คั่นจุลภาค) ต้องคงไว้ เพราะกราฟแดชบอร์ดนับคำตอบจากคอลัมน์นี้
       payload[q.id] = selected.join(", ");
+      // แตกแต่ละตัวเลือกเป็นคอลัมน์ของตัวเอง: 1 = ถูกเลือก, ว่าง = ไม่เลือก (รวมคะแนนในชีตได้ทันที)
+      (q.choices || []).forEach(choice => {
+        payload[`${q.id}_${choice}`] = selected.includes(choice) ? 1 : "";
+      });
       if (q.hasOther) {
         payload[q.id + "_Other"] = selected.includes("อื่น ๆ") ? (form.querySelector(`input[name="${q.id}_Other"]`)?.value || "") : "";
       }
