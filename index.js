@@ -1380,12 +1380,33 @@ function renderMockLogin() {
   });
 }
 
-function renderRealGoogleLogin() {
+let googleLoginRetryTimer = null;
+
+function renderRealGoogleLogin(attempt = 0) {
   const container = document.getElementById("google-login-btn");
   if (!container) return;
-  
+
+  if (googleLoginRetryTimer) {
+    clearTimeout(googleLoginRetryTimer);
+    googleLoginRetryTimer = null;
+  }
+
+  // SDK โหลดแบบ async defer จึงอาจมาช้ากว่าตอนหน้า login แสดง — ต้องรอจนพร้อมก่อนค่อย render ปุ่ม
+  if (typeof google === "undefined" || !google.accounts || !google.accounts.id) {
+    if (attempt >= 50) {
+      console.error("Google Login initialization failed: gsi/client script did not load within 10s");
+      container.innerHTML = `<p style="color:var(--danger); font-size:0.85rem;">ไม่สามารถโหลดปุ่ม Google Sign-In ได้ กรุณาตรวจสอบอินเทอร์เน็ตแล้วรีเฟรชหน้าอีกครั้ง</p>`;
+      return;
+    }
+    if (attempt === 0) {
+      container.innerHTML = `<p style="color:var(--text-muted); font-size:0.85rem;">กำลังโหลดปุ่มเข้าสู่ระบบ Google...</p>`;
+    }
+    googleLoginRetryTimer = setTimeout(() => renderRealGoogleLogin(attempt + 1), 200);
+    return;
+  }
+
   container.innerHTML = "";
-  
+
   try {
     google.accounts.id.initialize({
       client_id: GOOGLE_CLIENT_ID,
