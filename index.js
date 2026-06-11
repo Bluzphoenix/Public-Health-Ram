@@ -2284,6 +2284,8 @@ function submitFormAnswers() {
   
   payload.Timestamp = new Date().toISOString();
   payload.Survey_ID = currentSettings.id || "default";
+  // ฝังชื่อชุดแบบสอบถาม (จากชีต Surveys) ลงทุกแถวคำตอบ ให้รู้ว่าแถวไหนมาจากแบบสอบถามชุดใด
+  payload.Survey_Name = currentSettings.surveyName || "";
   payload.Consent = form.querySelector('input[name="Consent"]:checked')?.value || "ยินยอม";
 
   currentSchema.forEach(q => {
