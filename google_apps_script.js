@@ -710,8 +710,8 @@ function getSurveysList(ss) {
   // If not, initialize "Surveys" with a default survey.
   if (!sheet) {
     sheet = ss.insertSheet("Surveys");
-    sheet.getRange(1, 1, 1, 7).setValues([["ID", "Survey_Name", "Start_Time", "End_Time", "Is_Active", "Schema_JSON", "Access_Token"]]).setFontWeight("bold").setBackground("#e2f0d9");
-    
+    sheet.getRange(1, 1, 1, 8).setValues([["ID", "Survey_Name", "Start_Time", "End_Time", "Is_Active", "Schema_JSON", "Access_Token", "Block_Repeat"]]).setFontWeight("bold").setBackground("#e2f0d9");
+
     var oldSettingsSheet = ss.getSheetByName("Settings");
     var oldSchemaSheet = ss.getSheetByName("SurveySchema");
     
@@ -721,6 +721,7 @@ function getSurveysList(ss) {
       startTime: "",
       endTime: "",
       isActive: true,
+      blockRepeat: false,
       schema: [],
       accessToken: "tk_" + Math.random().toString(36).substring(2, 10) + Math.random().toString(36).substring(2, 10)
     };
@@ -749,7 +750,8 @@ function getSurveysList(ss) {
       initialSurvey.endTime,
       String(initialSurvey.isActive),
       JSON.stringify(initialSurvey.schema),
-      initialSurvey.accessToken
+      initialSurvey.accessToken,
+      String(initialSurvey.blockRepeat)
     ]);
     
     return [initialSurvey];
@@ -758,17 +760,21 @@ function getSurveysList(ss) {
   var lastRow = sheet.getLastRow();
   var lastColumn = sheet.getLastColumn();
   
-  // Ensure "Access_Token" header exists if migrating sheet column structure
+  // Ensure "Access_Token" / "Block_Repeat" headers exist if migrating sheet column structure
   if (lastColumn < 7) {
     sheet.getRange(1, 7).setValue("Access_Token").setFontWeight("bold").setBackground("#e2f0d9");
     lastColumn = 7;
   }
-  
+  if (lastColumn < 8) {
+    sheet.getRange(1, 8).setValue("Block_Repeat").setFontWeight("bold").setBackground("#e2f0d9");
+    lastColumn = 8;
+  }
+
   if (lastRow <= 1) {
     return [];
   }
-  
-  var data = sheet.getRange(2, 1, lastRow - 1, 7).getValues();
+
+  var data = sheet.getRange(2, 1, lastRow - 1, 8).getValues();
   var surveys = [];
   
   for (var i = 0; i < data.length; i++) {
@@ -795,7 +801,8 @@ function getSurveysList(ss) {
       endTime: String(data[i][3]),
       isActive: (data[i][4] === "true" || data[i][4] === true),
       schema: schema,
-      accessToken: token
+      accessToken: token,
+      blockRepeat: (data[i][7] === "true" || data[i][7] === true)
     });
   }
   return surveys;
@@ -807,8 +814,8 @@ function saveSurveysList(ss, surveys) {
     sheet = ss.insertSheet("Surveys");
   }
   sheet.clear();
-  sheet.getRange(1, 1, 1, 7).setValues([["ID", "Survey_Name", "Start_Time", "End_Time", "Is_Active", "Schema_JSON", "Access_Token"]]).setFontWeight("bold").setBackground("#e2f0d9");
-  
+  sheet.getRange(1, 1, 1, 8).setValues([["ID", "Survey_Name", "Start_Time", "End_Time", "Is_Active", "Schema_JSON", "Access_Token", "Block_Repeat"]]).setFontWeight("bold").setBackground("#e2f0d9");
+
   if (surveys && surveys.length > 0) {
     var rows = [];
     for (var i = 0; i < surveys.length; i++) {
@@ -821,10 +828,11 @@ function saveSurveysList(ss, surveys) {
         s.endTime || "",
         String(s.isActive),
         JSON.stringify(s.schema || []),
-        token
+        token,
+        String(s.blockRepeat === true)
       ]);
     }
-    sheet.getRange(2, 1, rows.length, 7).setValues(rows);
+    sheet.getRange(2, 1, rows.length, 8).setValues(rows);
   }
 }
 

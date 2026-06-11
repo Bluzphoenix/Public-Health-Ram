@@ -289,6 +289,16 @@ function initTheme() {
 }
 
 function setupEventListeners() {
+  // ปุ่มปลดล็อกการทำแบบสอบถามซ้ำ (แสดงเฉพาะแอดมิน บนหน้าแจ้งเตือนถูกล็อก)
+  const btnResetRepeat = document.getElementById("btn-reset-repeat");
+  if (btnResetRepeat) {
+    btnResetRepeat.addEventListener("click", () => {
+      if (!confirm("ยืนยันปลดล็อกให้อุปกรณ์เครื่องนี้ทำแบบสอบถามนี้ได้อีกครั้งใช่หรือไม่?")) return;
+      localStorage.removeItem("survey_completed_" + currentSettings.id);
+      checkSurveyStatus();
+    });
+  }
+
   btnToggleTheme.addEventListener('click', () => {
     document.body.classList.toggle('dark-theme');
     const isDark = document.body.classList.contains('dark-theme');
@@ -441,6 +451,7 @@ function loadPublicSettingsAndSchema() {
         startTime: targetSurvey.startTime,
         endTime: targetSurvey.endTime,
         isActive: targetSurvey.isActive,
+        blockRepeat: targetSurvey.blockRepeat === true,
         accessToken: targetSurvey.accessToken
       };
       currentSchema = targetSurvey.schema || DEFAULT_SCHEMA;
@@ -577,6 +588,7 @@ function loadDefaultSettingsAndSchema() {
       startTime: activeSurvey.startTime,
       endTime: activeSurvey.endTime,
       isActive: activeSurvey.isActive,
+      blockRepeat: activeSurvey.blockRepeat === true,
       accessToken: activeSurvey.accessToken
     };
     currentSchema = activeSurvey.schema || DEFAULT_SCHEMA;
@@ -681,15 +693,23 @@ function checkSurveyStatus() {
     isClosed = true;
     closedMessage = "ไม่พบแบบสอบถามที่ระบุ หรือไม่มีรหัสสิทธิ์เข้าถึงที่ถูกต้อง";
   }
-  
+
+  // ห้ามทำแบบสอบถามซ้ำจากอุปกรณ์เดิม (เปิด/ปิดได้รายแบบสอบถามที่หน้าตั้งค่า)
+  let isRepeatBlocked = false;
+  if (!isClosed && currentSettings.blockRepeat && localStorage.getItem("survey_completed_" + currentSettings.id)) {
+    isClosed = true;
+    isRepeatBlocked = true;
+    closedMessage = "อุปกรณ์เครื่องนี้ได้ส่งคำตอบแบบสอบถามนี้ไปแล้ว ขอขอบพระคุณที่ร่วมตอบแบบสอบถาม (จำกัดการตอบ 1 ครั้งต่อ 1 อุปกรณ์)";
+  }
+
   if (isClosed) {
     if (closedPane) closedPane.classList.remove("hidden");
     if (activeHeader) activeHeader.classList.add("hidden");
     if (form) form.classList.add("hidden");
-    
+
     const msgEl = document.getElementById("closed-pane-message");
     if (msgEl) msgEl.innerText = closedMessage;
-    
+
     // Show/hide back to dashboard on closed screen depending on admin session
     const btnClosedBackDash = document.getElementById("btn-closed-back-dash");
     if (btnClosedBackDash) {
@@ -697,6 +717,16 @@ function checkSurveyStatus() {
         btnClosedBackDash.classList.remove("hidden");
       } else {
         btnClosedBackDash.classList.add("hidden");
+      }
+    }
+
+    // ปุ่มปลดล็อกการทำซ้ำ: แสดงเฉพาะกรณีถูกล็อกจากการทำซ้ำ และผู้ใช้เป็นแอดมิน
+    const btnResetRepeat = document.getElementById("btn-reset-repeat");
+    if (btnResetRepeat) {
+      if (isRepeatBlocked && sessionStorage.getItem("admin_token")) {
+        btnResetRepeat.classList.remove("hidden");
+      } else {
+        btnResetRepeat.classList.add("hidden");
       }
     }
   } else {
@@ -770,8 +800,15 @@ function convertToInputFormat(val) {
 }
 
 // CHECK DUPLICATE SUBMISSION STATE
+// การบล็อกการทำซ้ำจริงอยู่ใน checkSurveyStatus() — ฟังก์ชันนี้คงไว้ตามจุดเรียกเดิม
 function checkIfSurveyCompleted() {
-  // Allow multiple submissions
+}
+
+// ฝังเครื่องหมาย "อุปกรณ์นี้ส่งคำตอบแล้ว" ลงเครื่องผู้ตอบ (เฉพาะแบบสอบถามที่เปิดใช้ห้ามทำซ้ำ)
+function markSurveyCompletedOnDevice() {
+  if (currentSettings.blockRepeat && currentSettings.id) {
+    localStorage.setItem("survey_completed_" + currentSettings.id, new Date().toISOString());
+  }
 }
 
 function showView(viewName) {
@@ -998,13 +1035,16 @@ function renderSurveyForm() {
       const sectionName = q.section === "Context" ? "ด้านบริบทเวทีสานพลัง (Context)" :
                           q.section === "Input" ? "ด้านปัจจัยนำเข้า (Input)" :
                           q.section === "Process" ? "ด้านกระบวนการจัดการ (Process)" :
-                          q.section === "Output" ? "ด้านผลลัพธ์เวทีฯ (Output/Outcome)" : "";
+                          q.section === "Output" ? "ด้านผลลัพธ์เวทีฯ (Output/Outcome)" :
+                          q.section === "Infographic" ? "ภาพอินโฟกราฟฟิก (Infographic)" : "";
+      const imageHtml = q.image ? `<div class="infographic-preview-box" style="margin-bottom:16px;"><img src="${escapeHtml(q.image)}" alt="ภาพประกอบ" style="max-width:100%; height:auto; border-radius:8px; border:1px solid var(--border-color); display:block; margin:0 auto;"></div>` : "";
       html += `
         <div class="likert-form-card" data-qid="${escapeHtml(q.id)}">
           <div class="likert-card-header">
             <span class="likert-q-num">${escapeHtml(q.id)}${sectionName ? " • " + sectionName : ""}</span>
           </div>
           <div class="likert-q-text">${escapeHtml(q.text)}</div>
+          ${imageHtml}
           ${buildScoreRadios(q.id, 5)}
           <div class="error-message">กรุณาให้คะแนนข้อคำถามนี้</div>
         </div>
@@ -2301,7 +2341,8 @@ function submitFormAnswers() {
     setTimeout(() => {
       if (overlay) overlay.classList.add('hidden');
       appData.push(payload);
-      
+      markSurveyCompletedOnDevice();
+
       document.getElementById('thankyou-pane').classList.remove('hidden');
       form.classList.add('hidden');
     }, 1500);
@@ -2319,7 +2360,8 @@ function submitFormAnswers() {
   .then(() => {
     if (overlay) overlay.classList.add('hidden');
     appData.push(payload);
-    
+    markSurveyCompletedOnDevice();
+
     document.getElementById('thankyou-pane').classList.remove('hidden');
     form.classList.add('hidden');
   })
@@ -2576,6 +2618,8 @@ function saveSettings(isSilent) {
   const startTime = document.getElementById("input-set-start").value;
   const endTime = document.getElementById("input-set-end").value;
   const isActive = document.getElementById("input-set-active").checked;
+  const blockRepeatChk = document.getElementById("input-set-block-repeat");
+  const blockRepeat = blockRepeatChk ? blockRepeatChk.checked : false;
   const tokenInput = document.getElementById("input-set-token");
   const tokenVal = tokenInput ? tokenInput.value.trim() : "";
   const accessToken = tokenVal || ("tk_" + Math.random().toString(36).substring(2, 10) + Math.random().toString(36).substring(2, 10));
@@ -2612,6 +2656,7 @@ function saveSettings(isSilent) {
       startTime: startTime,
       endTime: endTime,
       isActive: isActive,
+      blockRepeat: blockRepeat,
       schema: updatedSchema,
       accessToken: accessToken
     });
@@ -2622,6 +2667,7 @@ function saveSettings(isSilent) {
       s.startTime = startTime;
       s.endTime = endTime;
       s.isActive = isActive;
+      s.blockRepeat = blockRepeat;
       s.schema = updatedSchema;
       s.accessToken = accessToken;
     }
@@ -2638,6 +2684,7 @@ function saveSettings(isSilent) {
         startTime: activeSurvey.startTime,
         endTime: activeSurvey.endTime,
         isActive: activeSurvey.isActive,
+        blockRepeat: activeSurvey.blockRepeat === true,
         accessToken: activeSurvey.accessToken
       };
       currentSchema = activeSurvey.schema || DEFAULT_SCHEMA;
@@ -2692,6 +2739,7 @@ function saveSettings(isSilent) {
           startTime: activeSurvey.startTime,
           endTime: activeSurvey.endTime,
           isActive: activeSurvey.isActive,
+          blockRepeat: activeSurvey.blockRepeat === true,
           accessToken: activeSurvey.accessToken
         };
         currentSchema = activeSurvey.schema || DEFAULT_SCHEMA;
@@ -2894,6 +2942,11 @@ function selectSurvey(id) {
     }
   }
   
+  const blockRepeatChk = document.getElementById("input-set-block-repeat");
+  if (blockRepeatChk) {
+    blockRepeatChk.checked = s.blockRepeat === true;
+  }
+
   const activeChk = document.getElementById("input-set-active");
   if (activeChk) {
     activeChk.checked = s.isActive;
@@ -2914,6 +2967,7 @@ function selectSurvey(id) {
     startTime: s.startTime,
     endTime: s.endTime,
     isActive: s.isActive,
+    blockRepeat: s.blockRepeat === true,
     accessToken: token
   };
   rebuildQuestionsMeta();
@@ -2960,7 +3014,12 @@ function prepareCreateSurvey() {
   if (activeChk) {
     activeChk.checked = true;
   }
-  
+
+  const blockRepeatChk = document.getElementById("input-set-block-repeat");
+  if (blockRepeatChk) {
+    blockRepeatChk.checked = false;
+  }
+
   // เริ่มจากแบบสอบถามว่างเปล่า: ผู้ดูแลระบบกรอกคำถามทีละข้อและเลือกรูปแบบการตอบเอง
   currentSchema = [];
   rebuildQuestionsMeta();
@@ -3220,6 +3279,7 @@ function renderBuilder() {
             <option value="Input" ${q.section === "Input" ? "selected" : ""}>ด้านปัจจัยนำเข้า (Input)</option>
             <option value="Process" ${q.section === "Process" ? "selected" : ""}>ด้านกระบวนการ (Process)</option>
             <option value="Output" ${q.section === "Output" ? "selected" : ""}>ด้านผลสัมฤทธิ์ (Output)</option>
+            <option value="Infographic" ${q.section === "Infographic" ? "selected" : ""}>ภาพอินโฟกราฟฟิก (Infographic)</option>
           </select>
         </div>
       `;
@@ -3270,6 +3330,42 @@ function renderBuilder() {
         bodyHtml += `<button type="button" class="btn-add-subitem" data-qid="${escapeHtml(q.id)}" style="background:none; border:1px dashed var(--border-color); color:var(--text-secondary); cursor:pointer; font-size:0.75rem; padding:4px 10px; border-radius:6px; margin-top:4px;">+ เพิ่มหัวข้อย่อย</button>`;
       }
       bodyHtml += `</div>`;
+    }
+
+    // ตั้งค่าเพิ่มเติมของคำถามที่เพิ่มเอง: ส่วนที่ของแบบฟอร์ม / บังคับตอบ / ภาพประกอบ / pattern
+    if (!isCore) {
+      bodyHtml += `
+        <div class="bq-row mt-2">
+          <div class="form-group">
+            <label class="form-label" style="font-weight:600;">ส่วนที่ของแบบฟอร์ม (หน้า)</label>
+            <select class="form-control builder-input-step">
+              <option value="1" ${(!q.step || q.step === 1) ? "selected" : ""}>ส่วนที่ 1</option>
+              <option value="2" ${q.step === 2 ? "selected" : ""}>ส่วนที่ 2</option>
+              <option value="3" ${q.step === 3 ? "selected" : ""}>ส่วนที่ 3</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label" style="font-weight:600;">ภาพประกอบ (URL หรือ path เช่น assets/image1.png)</label>
+            <input type="text" class="form-control builder-input-image" value="${escapeHtml(q.image || "")}">
+          </div>
+        </div>
+      `;
+      if (q.type === "text") {
+        bodyHtml += `
+          <div class="form-group mt-2">
+            <label class="form-label" style="font-weight:600;">รูปแบบคำตอบที่ยอมรับ (Regex Pattern เช่น ^\\d{7}$ = ตัวเลข 7 หลัก, เว้นว่าง = ไม่ตรวจ)</label>
+            <input type="text" class="form-control builder-input-pattern" value="${escapeHtml(q.pattern || "")}">
+          </div>
+        `;
+      }
+      bodyHtml += `
+        <div class="form-group mt-2">
+          <label style="display:flex; align-items:center; gap:8px; font-size:0.85rem; cursor:pointer;">
+            <input type="checkbox" class="builder-input-required" ${q.required !== false ? "checked" : ""}>
+            บังคับตอบ (ผู้ตอบต้องตอบข้อนี้ก่อนส่ง)
+          </label>
+        </div>
+      `;
     }
 
     card.innerHTML = headerHtml + bodyHtml;
@@ -3365,7 +3461,6 @@ function handleBuilderReset() {
 // silent = false: ใช้ตอนกดบันทึก (ตรวจสอบว่าต้องกรอกข้อความครบ)
 function collectBuilderSchema(silent) {
   const updatedSchema = [];
-  const step = 1; // รายการคำถามเดียว ไม่แบ่งส่วน
 
   {
     const cards = document.querySelectorAll("#builder-questions-list .builder-question-card");
@@ -3399,7 +3494,16 @@ function collectBuilderSchema(silent) {
         return null;
       }
 
-      const q = { id, text, step, required: orig ? (orig.required !== false) : true };
+      // ส่วนที่ของแบบฟอร์ม: คำถามหลักคงค่าเดิม, คำถามที่เพิ่มเองอ่านจากตัวเลือก
+      let step = orig && orig.step ? orig.step : 1;
+      const stepSel = card.querySelector('.builder-input-step');
+      if (!isCore && stepSel) step = Number(stepSel.value) || 1;
+
+      let required = orig ? (orig.required !== false) : true;
+      const reqChk = card.querySelector('.builder-input-required');
+      if (!isCore && reqChk) required = reqChk.checked;
+
+      const q = { id, text, step, required };
 
       if (isCore) {
         // คำถามหลักของเทมเพลต: คงประเภทและคุณสมบัติเดิม แก้ได้เฉพาะข้อความ/ตัวเลือก/หัวข้อย่อย/ด้านการประเมิน
@@ -3464,6 +3568,25 @@ function collectBuilderSchema(silent) {
         } else {
           q.subfields = [`${id}_Sub1`, `${id}_Sub2`];
           q.sublabels = ["หัวข้อย่อย 1", "หัวข้อย่อย 2"];
+        }
+      }
+
+      if (!isCore) {
+        const imgInput = card.querySelector('.builder-input-image');
+        if (imgInput && imgInput.value.trim()) q.image = imgInput.value.trim();
+
+        const patInput = card.querySelector('.builder-input-pattern');
+        if (patInput && q.type === "text" && patInput.value.trim()) {
+          const pat = patInput.value.trim();
+          try {
+            new RegExp(pat);
+            q.pattern = pat;
+          } catch (e) {
+            if (!silent) {
+              alert(`Pattern ของข้อ "${text}" ไม่ใช่ Regex ที่ถูกต้อง: ${pat}`);
+              return null;
+            }
+          }
         }
       }
 

@@ -325,6 +325,20 @@
                     </div>
                   </div>
 
+                  <!-- BLOCK REPEAT SUBMISSION CARD -->
+                  <div class="survey-status-card" style="margin-bottom: 20px; padding: 16px; border-radius: 10px; background: var(--bg-secondary); border: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                      <h5 style="margin: 0; font-size: 0.85rem; font-weight: 600; color: var(--text-primary);">ห้ามทำแบบสอบถามซ้ำ (1 ครั้งต่อ 1 อุปกรณ์)</h5>
+                      <span style="font-size: 0.75rem; color: var(--text-muted);">อุปกรณ์ที่ส่งคำตอบแล้วจะถูกล็อกไม่ให้ตอบแบบสอบถามนี้ซ้ำ (ผู้ดูแลระบบกดปลดล็อกได้ที่หน้าแจ้งเตือน)</span>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                      <label class="switch-toggle">
+                        <input type="checkbox" id="input-set-block-repeat">
+                        <span class="slider-round"></span>
+                      </label>
+                    </div>
+                  </div>
+
                   <div class="settings-save-bar">
                     <button type="submit" id="btn-save-settings" class="btn-primary" style="width: 100%; justify-content: center; display: flex; align-items: center; gap: 6px;">
                       <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
@@ -378,6 +392,7 @@
           <h3 id="closed-pane-title">แบบสอบถามปิดรับข้อมูล</h3>
           <p id="closed-pane-message" class="mt-2">ขออภัย แบบสอบถามนี้สิ้นสุดระยะเวลาการเก็บข้อมูลแล้ว หรือถูกปิดใช้งานโดยผู้ดูแลระบบชั่วคราว</p>
           <button id="btn-closed-back-dash" class="btn-primary mt-4">ไปที่แดชบอร์ดหลัก</button>
+          <button id="btn-reset-repeat" class="btn-primary mt-4 hidden" style="background: var(--warning, #e67e22); border-color: var(--warning, #e67e22);">ปลดล็อกให้เครื่องนี้ทำแบบสอบถามได้อีกครั้ง (ผู้ดูแลระบบ)</button>
         </div>
 
         <!-- Form Header -->
