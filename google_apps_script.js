@@ -840,23 +840,30 @@ function saveSurveysList(ss, surveys) {
 
 function parseThaiDateTimeForScript(str) {
   if (!str) return null;
-  var cleanStr = str.replace(/เวลา/g, ' ').replace(/น\./g, ' ').replace(/\s+/g, ' ').trim();
-  if (cleanStr.indexOf('T') !== -1 || cleanStr.indexOf('-') !== -1) {
+  var cleanStr = String(str).replace(/เวลา/g, ' ').replace(/น\./g, ' ').replace(/\s+/g, ' ').trim();
+  // รูปแบบอื่นที่ไม่ใช่ "DD/MM/YYYY [HH:mm]" (เช่น Date string ยาวจากเซลล์วันที่) ให้ JS parse ตรง ๆ
+  // ห้ามเช็คด้วย indexOf('T') เพราะคำว่า "GMT"/"Time" ก็มีตัว T — ต้องตรงกับ parseThaiDateTime ฝั่งเว็บ
+  if (!/^\d{1,2}\/\d{1,2}\/\d{4}/.test(cleanStr)) {
     var d = new Date(cleanStr);
-    return isNaN(d.getTime()) ? null : d;
+    if (isNaN(d.getTime())) return null;
+    // ข้อมูลเก่าที่ชีตเคยตีความปี พ.ศ. เป็น ค.ศ. (ปีเกิน 2400) ให้ลดกลับ 543 ปี
+    if (d.getFullYear() > 2400) d.setFullYear(d.getFullYear() - 543);
+    return d;
   }
-  
+
   var parts = cleanStr.split(' ');
   var datePart = parts[0];
   var timePart = parts[1] || "00:00";
-  
+
   var dateSubparts = datePart.split('/');
   if (dateSubparts.length !== 3) return null;
-  
+
   var day = parseInt(dateSubparts[0], 10);
   var month = parseInt(dateSubparts[1], 10) - 1;
   var year = parseInt(dateSubparts[2], 10);
-  
+
+  if (day < 1 || day > 31 || month < 0 || month > 11) return null;
+
   if (year > 2400) {
     year -= 543;
   }

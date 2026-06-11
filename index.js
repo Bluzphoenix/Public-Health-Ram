@@ -261,7 +261,6 @@ const syncDot = document.querySelector('.sync-dot');
 document.addEventListener("DOMContentLoaded", () => {
   initTheme();
   setupEventListeners();
-  checkIfSurveyCompleted();
   setupFormWizard();
   setupAdminTabs();
   
@@ -294,7 +293,7 @@ function setupEventListeners() {
   if (btnResetRepeat) {
     btnResetRepeat.addEventListener("click", () => {
       if (!confirm("ยืนยันปลดล็อกให้อุปกรณ์เครื่องนี้ทำแบบสอบถามนี้ได้อีกครั้งใช่หรือไม่?")) return;
-      localStorage.removeItem("survey_completed_" + currentSettings.id);
+      localStorage.removeItem(surveyCompletedKey());
       checkSurveyStatus();
     });
   }
@@ -696,7 +695,7 @@ function checkSurveyStatus() {
 
   // ห้ามทำแบบสอบถามซ้ำจากอุปกรณ์เดิม (เปิด/ปิดได้รายแบบสอบถามที่หน้าตั้งค่า)
   let isRepeatBlocked = false;
-  if (!isClosed && currentSettings.blockRepeat && localStorage.getItem("survey_completed_" + currentSettings.id)) {
+  if (!isClosed && currentSettings.blockRepeat && localStorage.getItem(surveyCompletedKey())) {
     isClosed = true;
     isRepeatBlocked = true;
     closedMessage = "อุปกรณ์เครื่องนี้ได้ส่งคำตอบแบบสอบถามนี้ไปแล้ว ขอขอบพระคุณที่ร่วมตอบแบบสอบถาม (จำกัดการตอบ 1 ครั้งต่อ 1 อุปกรณ์)";
@@ -736,14 +735,20 @@ function checkSurveyStatus() {
   }
 }
 
-function formatThaiDateTime(date) {
-  if (!date) return "";
+// คืนค่า "DD/MM/YYYY HH:mm" ปี ค.ศ. — จุดเดียวที่กำหนดรูปแบบวันที่ของทั้งระบบ
+function formatDateTimeCE(date) {
   const day = String(date.getDate()).padStart(2, '0');
   const month = String(date.getMonth() + 1).padStart(2, '0');
-  const year = date.getFullYear(); // แสดงปีเป็น ค.ศ. ทั้งระบบ
+  const year = date.getFullYear();
   const hours = String(date.getHours()).padStart(2, '0');
   const minutes = String(date.getMinutes()).padStart(2, '0');
-  return `${day}/${month}/${year} เวลา ${hours}:${minutes} น.`;
+  return `${day}/${month}/${year} ${hours}:${minutes}`;
+}
+
+function formatThaiDateTime(date) {
+  if (!date) return "";
+  const [d, t] = formatDateTimeCE(date).split(' ');
+  return `${d} เวลา ${t} น.`;
 }
 
 function parseThaiDateTime(str) {
@@ -771,7 +776,10 @@ function parseThaiDateTime(str) {
   const day = parseInt(dateSubparts[0], 10);
   const month = parseInt(dateSubparts[1], 10) - 1; // 0-indexed month
   let year = parseInt(dateSubparts[2], 10);
-  
+
+  // วัน/เดือนเกินช่วงจริง (เช่น 32/13) ถือว่า parse ไม่ได้ — กัน JS Date ทดเดือน/วันข้ามไปเงียบ ๆ
+  if (day < 1 || day > 31 || month < 0 || month > 11) return null;
+
   // Convert Buddhist year (>2400) to Christian year
   if (year > 2400) {
     year -= 543;
@@ -789,26 +797,18 @@ function convertToInputFormat(val) {
   if (!val) return "";
   // แปลงทุกรูปแบบ (รวมค่าปี พ.ศ. เดิม) ให้เป็น "DD/MM/YYYY HH:mm" ปี ค.ศ. เสมอ
   const date = parseThaiDateTime(val);
-  if (!date) return val;
-
-  const day = String(date.getDate()).padStart(2, '0');
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const year = date.getFullYear();
-  const hours = String(date.getHours()).padStart(2, '0');
-  const minutes = String(date.getMinutes()).padStart(2, '0');
-
-  return `${day}/${month}/${year} ${hours}:${minutes}`;
+  return date ? formatDateTimeCE(date) : val;
 }
 
-// CHECK DUPLICATE SUBMISSION STATE
-// การบล็อกการทำซ้ำจริงอยู่ใน checkSurveyStatus() — ฟังก์ชันนี้คงไว้ตามจุดเรียกเดิม
-function checkIfSurveyCompleted() {
+// คีย์ localStorage ของเครื่องหมาย "อุปกรณ์นี้ส่งคำตอบแล้ว" (รายแบบสอบถาม)
+function surveyCompletedKey() {
+  return "survey_completed_" + (currentSettings.id || "default");
 }
 
 // ฝังเครื่องหมาย "อุปกรณ์นี้ส่งคำตอบแล้ว" ลงเครื่องผู้ตอบ (เฉพาะแบบสอบถามที่เปิดใช้ห้ามทำซ้ำ)
 function markSurveyCompletedOnDevice() {
   if (currentSettings.blockRepeat && currentSettings.id) {
-    localStorage.setItem("survey_completed_" + currentSettings.id, new Date().toISOString());
+    localStorage.setItem(surveyCompletedKey(), new Date().toISOString());
   }
 }
 
@@ -819,7 +819,6 @@ function showView(viewName) {
   if (viewDashboard) viewDashboard.classList.remove('active');
   if (viewSurvey) viewSurvey.classList.remove('active');
   
-  checkIfSurveyCompleted();
   checkSurveyStatus();
 
   if (viewName === 'dashboard') {
@@ -1038,7 +1037,7 @@ function renderSurveyForm() {
                           q.section === "Process" ? "ด้านกระบวนการจัดการ (Process)" :
                           q.section === "Output" ? "ด้านผลลัพธ์เวทีฯ (Output/Outcome)" :
                           q.section === "Infographic" ? "ภาพอินโฟกราฟฟิก (Infographic)" : "";
-      const imageHtml = q.image ? `<div class="infographic-preview-box" style="margin-bottom:16px;"><img src="${escapeHtml(q.image)}" alt="ภาพประกอบ" style="max-width:100%; height:auto; border-radius:8px; border:1px solid var(--border-color); display:block; margin:0 auto;"></div>` : "";
+      const imageHtml = infographicImageHtml(q);
       html += `
         <div class="likert-form-card" data-qid="${escapeHtml(q.id)}">
           <div class="likert-card-header">
@@ -1061,6 +1060,12 @@ function renderSurveyForm() {
   container.innerHTML = html;
   generateYearsCheckboxes();
   bindAnswerFieldEvents(container, currentSchema);
+}
+
+// กล่องภาพประกอบคำถาม (ใช้ร่วมกันทุกจุดที่ render คำถามแบบมีรูป)
+function infographicImageHtml(q) {
+  if (!q.image) return "";
+  return `<div class="infographic-preview-box" style="margin-bottom:16px;"><img src="${escapeHtml(q.image)}" alt="ภาพประกอบ" style="max-width:100%; height:auto; border-radius:8px; border:1px solid var(--border-color); display:block; margin:0 auto;"></div>`;
 }
 
 // สร้างปุ่มให้คะแนนแบบเรดิโอ 1..max (ใช้กับ Likert และ facilities)
@@ -1124,12 +1129,7 @@ function renderAnswerField(q) {
       }
       return label + `<input type="text" name="${escapeHtml(q.id)}" class="form-control" placeholder="${escapeHtml(q.text)}">`;
     case "likert": {
-      let h = label;
-      if (q.image) {
-        h += `<div class="infographic-preview-box" style="margin-bottom:16px;"><img src="${escapeHtml(q.image)}" alt="ภาพประกอบ" style="max-width:100%; height:auto; border-radius:8px; border:1px solid var(--border-color); display:block; margin:0 auto;"></div>`;
-      }
-      h += buildScoreRadios(q.id, 5);
-      return h;
+      return label + infographicImageHtml(q) + buildScoreRadios(q.id, 5);
     }
     case "score10": {
       const valLabel = "val-" + q.id;
@@ -2915,14 +2915,7 @@ function selectSurvey(id) {
     time_24hr: true,
     dateFormat: "d/m/Y H:i",
     allowInput: true,
-    formatDate: (date) => {
-      const day = String(date.getDate()).padStart(2, '0');
-      const month = String(date.getMonth() + 1).padStart(2, '0');
-      const year = date.getFullYear(); // ปี ค.ศ.
-      const hours = String(date.getHours()).padStart(2, '0');
-      const minutes = String(date.getMinutes()).padStart(2, '0');
-      return `${day}/${month}/${year} ${hours}:${minutes}`;
-    },
+    formatDate: (date) => formatDateTimeCE(date),
     parseDate: (datestr) => {
       return parseThaiDateTime(datestr);
     },
