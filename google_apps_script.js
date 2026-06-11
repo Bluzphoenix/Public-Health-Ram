@@ -832,6 +832,8 @@ function saveSurveysList(ss, surveys) {
         String(s.blockRepeat === true)
       ]);
     }
+    // บังคับคอลัมน์เวลาเป็นข้อความ กันชีตแปลงสตริงวันที่เป็นเซลล์วันที่แล้วตีความปีผิด
+    sheet.getRange(2, 3, rows.length, 2).setNumberFormat("@");
     sheet.getRange(2, 1, rows.length, 8).setValues(rows);
   }
 }

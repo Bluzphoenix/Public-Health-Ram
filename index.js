@@ -740,7 +740,7 @@ function formatThaiDateTime(date) {
   if (!date) return "";
   const day = String(date.getDate()).padStart(2, '0');
   const month = String(date.getMonth() + 1).padStart(2, '0');
-  const year = date.getFullYear() + 543; // ปี พ.ศ.
+  const year = date.getFullYear(); // แสดงปีเป็น ค.ศ. ทั้งระบบ
   const hours = String(date.getHours()).padStart(2, '0');
   const minutes = String(date.getMinutes()).padStart(2, '0');
   return `${day}/${month}/${year} เวลา ${hours}:${minutes} น.`;
@@ -751,11 +751,14 @@ function parseThaiDateTime(str) {
   // Clean string and replace 'เวลา' and 'น.' with spaces, then squeeze spaces
   const cleanStr = str.replace(/เวลา/g, ' ').replace(/น\./g, ' ').replace(/\s+/g, ' ').trim();
   
-  // Format check: "DD/MM/YYYY" or "DD/MM/YYYY HH:mm"
-  // But also support ISO string format like "2026-06-08T13:00" if it was loaded from Sheets initially
-  if (cleanStr.includes('T') || cleanStr.includes('-')) {
+  // รูปแบบอื่นที่ไม่ใช่ "DD/MM/YYYY [HH:mm]" (เช่น ISO หรือ Date string ยาวที่ Google Sheets ส่งกลับ)
+  // ให้ JS parse ตรง ๆ — ห้ามเช็คด้วย includes('T') เพราะคำว่า "GMT"/"Time" ก็มีตัว T
+  if (!/^\d{1,2}\/\d{1,2}\/\d{4}/.test(cleanStr)) {
     const d = new Date(cleanStr);
-    return isNaN(d.getTime()) ? null : d;
+    if (isNaN(d.getTime())) return null;
+    // ข้อมูลเก่าที่ชีตเคยตีความปี พ.ศ. เป็น ค.ศ. (ปีเกิน 2400) ให้ลดกลับ 543 ปี
+    if (d.getFullYear() > 2400) d.setFullYear(d.getFullYear() - 543);
+    return d;
   }
   
   const parts = cleanStr.split(' ');
@@ -784,18 +787,16 @@ function parseThaiDateTime(str) {
 
 function convertToInputFormat(val) {
   if (!val) return "";
-  // If already in DD/MM/YYYY format, return directly
-  if (/^\d{2}\/\d{2}\/\d{4}/.test(val)) return val;
-  
-  const date = new Date(val);
-  if (isNaN(date.getTime())) return val;
-  
+  // แปลงทุกรูปแบบ (รวมค่าปี พ.ศ. เดิม) ให้เป็น "DD/MM/YYYY HH:mm" ปี ค.ศ. เสมอ
+  const date = parseThaiDateTime(val);
+  if (!date) return val;
+
   const day = String(date.getDate()).padStart(2, '0');
   const month = String(date.getMonth() + 1).padStart(2, '0');
-  const year = date.getFullYear() + 543; // ปี พ.ศ.
+  const year = date.getFullYear();
   const hours = String(date.getHours()).padStart(2, '0');
   const minutes = String(date.getMinutes()).padStart(2, '0');
-  
+
   return `${day}/${month}/${year} ${hours}:${minutes}`;
 }
 
@@ -2910,7 +2911,7 @@ function selectSurvey(id) {
     formatDate: (date) => {
       const day = String(date.getDate()).padStart(2, '0');
       const month = String(date.getMonth() + 1).padStart(2, '0');
-      const year = date.getFullYear() + 543;
+      const year = date.getFullYear(); // ปี ค.ศ.
       const hours = String(date.getHours()).padStart(2, '0');
       const minutes = String(date.getMinutes()).padStart(2, '0');
       return `${day}/${month}/${year} ${hours}:${minutes}`;
