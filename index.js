@@ -1,6 +1,6 @@
 // CONFIGURATIONS
 // คัดลอก URL ของ Web App จาก Google Apps Script ที่ Deploy แล้วมาใส่ที่นี่
-const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwbZLbgd6FGVptbdekDHxqUugYAVsI7hRHeGO61CynGNPiqcgVhm8yZg6mqsMXFY5mq/exec";
+const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbywsr8DsmWciuZuW8pJMteZltKNZRNjg-qyhn5TUaorRGEgN8QO7u_BqJ61bBVJRf7-/exec";
 // ใส่ Client ID ที่ได้จาก Google Cloud Console ที่นี่ (หากเว้นว่างไว้ ระบบจะใช้ Login จำลองสำหรับการทดสอบ)
 const GOOGLE_CLIENT_ID = "799024999113-el95t5e96keiv3h0ci7mb1qu1uu8n0tm.apps.googleusercontent.com";
 // คัดลอก URL ของ CSV ที่ได้จากการสั่ง Share > Publish to Web ของ Google Sheets มาใส่ที่นี่ (กรณีดึงแบบสาธารณะ - ปัจจุบันระบบใช้ความปลอดภัยดึงผ่านสคริปต์แทน)
