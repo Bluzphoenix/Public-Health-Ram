@@ -742,6 +742,21 @@ function generateAccessToken() {
   return "tk_" + Math.random().toString(36).substring(2, 10) + Math.random().toString(36).substring(2, 10);
 }
 
+// หมวดการประเมินของคำถาม Likert — แหล่งข้อมูลเดียวสำหรับตัวเลือกในตัวสร้างแบบสอบถาม (adminLabel)
+// และป้ายกำกับหัวข้อในหน้าฟอร์มผู้ตอบ (formLabel) เพิ่มหมวดใหม่ที่นี่ที่เดียวก็ครบทั้งสองที่
+const LIKERT_SECTIONS = [
+  { key: "Context",     adminLabel: "ด้านบริบท (Context)",          formLabel: "ด้านบริบทเวทีสานพลัง (Context)" },
+  { key: "Input",       adminLabel: "ด้านปัจจัยนำเข้า (Input)",      formLabel: "ด้านปัจจัยนำเข้า (Input)" },
+  { key: "Process",     adminLabel: "ด้านกระบวนการ (Process)",       formLabel: "ด้านกระบวนการจัดการ (Process)" },
+  { key: "Output",      adminLabel: "ด้านผลสัมฤทธิ์ (Output)",       formLabel: "ด้านผลลัพธ์เวทีฯ (Output/Outcome)" },
+  { key: "Infographic", adminLabel: "ภาพอินโฟกราฟฟิก (Infographic)", formLabel: "ภาพอินโฟกราฟฟิก (Infographic)" }
+];
+
+function likertSectionFormLabel(key) {
+  const s = LIKERT_SECTIONS.find(x => x.key === key);
+  return s ? s.formLabel : "";
+}
+
 // คืนค่า "DD/MM/YYYY HH:mm" ปี ค.ศ. — จุดเดียวที่กำหนดรูปแบบวันที่ของทั้งระบบ
 // คืน "" ถ้า date ว่างหรือไม่ใช่วันที่ที่ใช้ได้ (กัน flatpickr ตอนล้างค่า / Invalid Date → NaN/NaN)
 function formatDateTimeCE(date) {
@@ -800,7 +815,10 @@ function parseThaiDateTime(str) {
   const minutes = parseInt(timeSubparts[1] || 0, 10);
   
   const parsedDate = new Date(year, month, day, hours, minutes);
-  return isNaN(parsedDate.getTime()) ? null : parsedDate;
+  if (isNaN(parsedDate.getTime())) return null;
+  // กันวันเกินจำนวนวันจริงของเดือน (เช่น 31/04, 30/02) ที่ JS Date จะทดข้ามเดือนเงียบ ๆ
+  if (parsedDate.getMonth() !== month || parsedDate.getDate() !== day) return null;
+  return parsedDate;
 }
 
 function convertToInputFormat(val) {
@@ -1042,11 +1060,7 @@ function renderSurveyForm() {
         </div>
       `;
     } else if (q.type === "likert") {
-      const sectionName = q.section === "Context" ? "ด้านบริบทเวทีสานพลัง (Context)" :
-                          q.section === "Input" ? "ด้านปัจจัยนำเข้า (Input)" :
-                          q.section === "Process" ? "ด้านกระบวนการจัดการ (Process)" :
-                          q.section === "Output" ? "ด้านผลลัพธ์เวทีฯ (Output/Outcome)" :
-                          q.section === "Infographic" ? "ภาพอินโฟกราฟฟิก (Infographic)" : "";
+      const sectionName = likertSectionFormLabel(q.section);
       const imageHtml = infographicImageHtml(q);
       html += `
         <div class="likert-form-card" data-qid="${escapeHtml(q.id)}">
@@ -3286,11 +3300,7 @@ function renderBuilder() {
         <div class="form-group mt-2">
           <label class="form-label" style="font-weight:600;">หัวข้อย่อยด้านการประเมิน (Section)</label>
           <select class="form-control builder-input-section" data-prop="section" style="width:100%;">
-            <option value="Context" ${q.section === "Context" ? "selected" : ""}>ด้านบริบท (Context)</option>
-            <option value="Input" ${q.section === "Input" ? "selected" : ""}>ด้านปัจจัยนำเข้า (Input)</option>
-            <option value="Process" ${q.section === "Process" ? "selected" : ""}>ด้านกระบวนการ (Process)</option>
-            <option value="Output" ${q.section === "Output" ? "selected" : ""}>ด้านผลสัมฤทธิ์ (Output)</option>
-            <option value="Infographic" ${q.section === "Infographic" ? "selected" : ""}>ภาพอินโฟกราฟฟิก (Infographic)</option>
+            ${LIKERT_SECTIONS.map(s => `<option value="${s.key}" ${q.section === s.key ? "selected" : ""}>${escapeHtml(s.adminLabel)}</option>`).join("")}
           </select>
         </div>
       `;

@@ -873,5 +873,8 @@ function parseThaiDateTimeForScript(str) {
   var minutes = parseInt(timeSubparts[1] || 0, 10);
   
   var parsedDate = new Date(year, month, day, hours, minutes);
-  return isNaN(parsedDate.getTime()) ? null : parsedDate;
+  if (isNaN(parsedDate.getTime())) return null;
+  // กันวันเกินจำนวนวันจริงของเดือน (เช่น 31/04, 30/02) ที่ JS Date จะทดข้ามเดือนเงียบ ๆ
+  if (parsedDate.getMonth() !== month || parsedDate.getDate() !== day) return null;
+  return parsedDate;
 }
