@@ -334,7 +334,7 @@ function setupEventListeners() {
     btnRegenToken.addEventListener('click', () => {
       const tokenInput = document.getElementById('input-set-token');
       if (tokenInput) {
-        const newToken = "tk_" + Math.random().toString(36).substring(2, 10) + Math.random().toString(36).substring(2, 10);
+        const newToken = generateAccessToken();
         tokenInput.value = newToken;
         
         // Also update QR Code and Link immediately
@@ -466,6 +466,7 @@ function loadPublicSettingsAndSchema() {
         startTime: "",
         endTime: "",
         isActive: false,
+        blockRepeat: false,
         accessToken: ""
       };
       currentSchema = [];
@@ -569,7 +570,7 @@ function loadDefaultSettingsAndSchema() {
   let updatedLocal = false;
   surveys.forEach(s => {
     if (!s.accessToken) {
-      s.accessToken = "tk_" + Math.random().toString(36).substring(2, 10) + Math.random().toString(36).substring(2, 10);
+      s.accessToken = generateAccessToken();
       updatedLocal = true;
     }
   });
@@ -597,7 +598,8 @@ function loadDefaultSettingsAndSchema() {
       surveyName: "ไม่มีแบบสอบถามที่เปิดใช้งาน",
       startTime: "",
       endTime: "",
-      isActive: false
+      isActive: false,
+      blockRepeat: false
     };
     currentSchema = DEFAULT_SCHEMA;
   }
@@ -735,8 +737,15 @@ function checkSurveyStatus() {
   }
 }
 
+// สร้าง Access Token รูปแบบ "tk_<random>" — จุดเดียวที่กำหนดรูปแบบโทเคน
+function generateAccessToken() {
+  return "tk_" + Math.random().toString(36).substring(2, 10) + Math.random().toString(36).substring(2, 10);
+}
+
 // คืนค่า "DD/MM/YYYY HH:mm" ปี ค.ศ. — จุดเดียวที่กำหนดรูปแบบวันที่ของทั้งระบบ
+// คืน "" ถ้า date ว่างหรือไม่ใช่วันที่ที่ใช้ได้ (กัน flatpickr ตอนล้างค่า / Invalid Date → NaN/NaN)
 function formatDateTimeCE(date) {
+  if (!date || isNaN(date.getTime())) return "";
   const day = String(date.getDate()).padStart(2, '0');
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const year = date.getFullYear();
@@ -746,8 +755,9 @@ function formatDateTimeCE(date) {
 }
 
 function formatThaiDateTime(date) {
-  if (!date) return "";
-  const [d, t] = formatDateTimeCE(date).split(' ');
+  const ce = formatDateTimeCE(date);
+  if (!ce) return "";
+  const [d, t] = ce.split(' ');
   return `${d} เวลา ${t} น.`;
 }
 
@@ -2630,7 +2640,7 @@ function saveSettings(isSilent) {
   const blockRepeat = blockRepeatChk ? blockRepeatChk.checked : false;
   const tokenInput = document.getElementById("input-set-token");
   const tokenVal = tokenInput ? tokenInput.value.trim() : "";
-  const accessToken = tokenVal || ("tk_" + Math.random().toString(36).substring(2, 10) + Math.random().toString(36).substring(2, 10));
+  const accessToken = tokenVal || generateAccessToken();
   
   if (tokenInput && !tokenInput.value) {
     tokenInput.value = accessToken;
@@ -2899,7 +2909,7 @@ function selectSurvey(id) {
   // Set access token input
   let token = s.accessToken;
   if (!token) {
-    token = "tk_" + Math.random().toString(36).substring(2, 10) + Math.random().toString(36).substring(2, 10);
+    token = generateAccessToken();
     s.accessToken = token;
   }
   const tokenInput = document.getElementById("input-set-token");
@@ -2997,7 +3007,7 @@ function prepareCreateSurvey() {
   
   const tokenInput = document.getElementById("input-set-token");
   if (tokenInput) {
-    tokenInput.value = "tk_" + Math.random().toString(36).substring(2, 10) + Math.random().toString(36).substring(2, 10);
+    tokenInput.value = generateAccessToken();
   }
   
   const startInput = document.getElementById("input-set-start");
